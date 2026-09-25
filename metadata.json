@@ -1,0 +1,6 @@
+{
+  "name": "جامعة كفر الشيخ",
+  "description": "البوابة الإلكترونية الرسمية لجامعة كفر الشيخ - Kafrelsheikh University official portal app providing electronic services, news, colleges list, and staff/student login access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
