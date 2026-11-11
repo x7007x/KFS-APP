@@ -1,0 +1,658 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build type"
+        required: true
+        type: choice
+        options:
+          - release
+          - debug
+        default: release
+
+      version_name:
+        description: "Version name override (e.g. 1.2.0). Leave empty to keep current."
+        required: false
+        type: string
+
+      version_code:
+        description: "Version code override (e.g. 5). Leave empty to keep current."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TG_CHAT: -1004365966306
+  TG_THREAD: 3
+  BUILD_TYPE: ${{ github.event.inputs.build_type || 'release' }}
+  VERSION_NAME_OVERRIDE: ${{ github.event.inputs.version_name || '' }}
+  VERSION_CODE_OVERRIDE: ${{ github.event.inputs.version_code || '' }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Record Start Time
+        run: |
+          echo "START_TIME=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: gradle
+
+      - name: Apply version overrides
+        if: env.VERSION_NAME_OVERRIDE != '' || env.VERSION_CODE_OVERRIDE != ''
+        env:
+          VERSION_NAME: ${{ env.VERSION_NAME_OVERRIDE }}
+          VERSION_CODE: ${{ env.VERSION_CODE_OVERRIDE }}
+        run: |
+          set -euo pipefail
+
+          FILE="app/build.gradle.kts"
+          if [ ! -f "$FILE" ]; then
+            FILE="$(find . -name "build.gradle.kts" -path "*/app/*" -print -quit)"
+          fi
+
+          if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
+            echo "::error::Could not locate app/build.gradle.kts"
+            exit 1
+          fi
+
+          if [ -n "$VERSION_NAME" ]; then
+            if ! [[ "$VERSION_NAME" =~ ^[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9._-]+)?$ ]]; then
+              echo "::error::Invalid version_name: $VERSION_NAME"
+              exit 1
+            fi
+
+            sed -i -E \
+              "s/versionName[[:space:]]*=[[:space:]]*\"[^\"]*\"/versionName = \"$VERSION_NAME\"/" \
+              "$FILE"
+          fi
+
+          if [ -n "$VERSION_CODE" ]; then
+            if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+              echo "::error::version_code must contain only digits."
+              exit 1
+            fi
+
+            sed -i -E \
+              "s/versionCode[[:space:]]*=[[:space:]]*[0-9]+/versionCode = $VERSION_CODE/" \
+              "$FILE"
+          fi
+
+      - name: Prepare Keystore
+        if: env.BUILD_TYPE == 'release'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          KEYSTORE_FILE="${{ github.workspace }}/my-upload-key.jks"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+          else
+            echo "::warning::KEYSTORE_BASE64 secret is not set. Signing with a throwaway key, so this APK cannot update an installed release."
+            keytool -genkeypair -keystore "$KEYSTORE_FILE" -alias throwaway -keyalg RSA -keysize 2048 -validity 3650 \
+              -storepass android -keypass android -dname "CN=KFU Portal, OU=CI, O=KFU"
+            echo "THROWAWAY_KEY=true" >> "$GITHUB_ENV"
+          fi
+
+          test -s "$KEYSTORE_FILE"
+          echo "KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
+
+      - name: Find and setup Gradlew
+        run: |
+          set -euo pipefail
+
+          GRADLEW_PATH="./gradlew"
+
+          if [ ! -f "$GRADLEW_PATH" ]; then
+            echo "gradlew was not found, initializing Gradle wrapper..."
+            gradle wrapper || true
+          fi
+
+          if [ ! -f "$GRADLEW_PATH" ]; then
+            echo "::error::gradlew was not found and could not be generated."
+            exit 1
+          fi
+
+          GRADLEW_DIR="$(dirname "$GRADLEW_PATH")"
+
+          echo "GRADLE_ROOT=$GRADLEW_DIR" >> "$GITHUB_ENV"
+
+          chmod +x "$GRADLEW_PATH"
+
+          echo "Gradle root: $GRADLEW_DIR"
+
+      - name: Build Project
+        working-directory: ${{ env.GRADLE_ROOT }}
+        env:
+          KEY_ALIAS: ${{ env.THROWAWAY_KEY == 'true' && 'throwaway' || secrets.KEY_ALIAS }}
+          PASSWORD: ${{ env.THROWAWAY_KEY == 'true' && 'android' || secrets.PASSWORD }}
+          STORE_PASSWORD: ${{ env.THROWAWAY_KEY == 'true' && 'android' || secrets.PASSWORD }}
+          KEY_PASSWORD: ${{ env.THROWAWAY_KEY == 'true' && 'android' || secrets.PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          TYPE_CAP="$(tr '[:lower:]' '[:upper:]' <<< "${BUILD_TYPE:0:1}")${BUILD_TYPE:1}"
+
+          GRADLE_ARGS=(
+            "assemble${TYPE_CAP}"
+            "bundle${TYPE_CAP}"
+            "--build-cache"
+            "--parallel"
+          )
+
+          if [ "$BUILD_TYPE" = "release" ]; then
+            GRADLE_ARGS+=(
+              "-x"
+              "lintVitalAnalyzeRelease"
+              "-x"
+              "lintVitalReportRelease"
+              "-x"
+              "lintVitalRelease"
+            )
+          fi
+
+          echo "Running: ./gradlew ${GRADLE_ARGS[*]}"
+
+          ./gradlew "${GRADLE_ARGS[@]}" --console=plain 2>&1 | tee "$RUNNER_TEMP/gradle-build.log"
+
+      - name: Report Build Failure
+        if: failure()
+        run: |
+          set +e
+          LOG="$RUNNER_TEMP/gradle-build.log"
+          [ -f "$LOG" ] || exit 0
+          {
+            echo "Gradle failure summary"
+            grep -n -E "^e: |^w: .*(Unresolved|error)|error:|Execution failed for task|What went wrong|Caused by:|Missing class|R8:|ERROR:" "$LOG" | head -40
+            echo "--- context after 'What went wrong'"
+            grep -n -A12 "What went wrong" "$LOG" | head -40
+          } > "$RUNNER_TEMP/summary.txt"
+          MSG="$(sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\r//g;s/\n/%0A/g' "$RUNNER_TEMP/summary.txt" | cut -c1-6000)"
+          echo "::error title=Gradle build failed::${MSG}"
+          exit 0
+
+      - name: Report Compile Errors
+        if: failure()
+        working-directory: ${{ env.GRADLE_ROOT }}
+        run: |
+          set +e
+          ./gradlew compileDebugKotlin --console=plain 2>&1 | tee /tmp/kt.log
+          grep -E "^e: |error:" /tmp/kt.log | head -60 | while IFS= read -r line; do
+            SAFE_LINE="${line//$'\n'/ }"
+            echo "::error::${SAFE_LINE}"
+          done
+          exit 0
+
+      - name: Publish failure log to build-logs branch
+        if: failure()
+        continue-on-error: true
+        run: |
+          set +e
+          LOG="$RUNNER_TEMP/gradle-build.log"
+          OUT="$RUNNER_TEMP/failure.txt"
+          {
+            echo "run: ${{ github.run_id }}  sha: ${{ github.sha }}"
+            [ -f "$LOG" ] && { grep -n -E "^e: |error:|Execution failed|What went wrong|Caused by:|Could not|Plugin " "$LOG" | head -80; echo ---; grep -n -A15 "What went wrong" "$LOG" | head -60; echo --- TAIL; tail -40 "$LOG"; }
+            [ -f /tmp/kt.log ] && { echo "--- compileDebugKotlin"; grep -E "^e: |error:" /tmp/kt.log | head -60; }
+          } > "$OUT"
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout --orphan build-logs
+          git rm -rf . > /dev/null 2>&1
+          cp "$OUT" failure.txt
+          git add failure.txt
+          git commit -q -m "build failure log for ${{ github.sha }}"
+          git push -f origin build-logs
+
+      - name: Locate Build Artifacts
+        run: |
+          set -euo pipefail
+
+          APK_FILE="$(
+            find "$GRADLE_ROOT" -type f \
+              -path "*/build/outputs/apk/$BUILD_TYPE/*.apk" \
+              ! -name "*-unaligned.apk" \
+              -print -quit
+          )"
+          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          ls -lh "$APK_FILE"
+          echo "APK_FILE=$APK_FILE" >> "$GITHUB_ENV"
+
+          AAB_FILE="$(
+            find "$GRADLE_ROOT" -type f \
+              -path "*/build/outputs/bundle/$BUILD_TYPE/*.aab" \
+              -print -quit
+          )"
+          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
+            echo "::error::No AAB was produced."
+            exit 1
+          fi
+          ls -lh "$AAB_FILE"
+          echo "AAB_FILE=$AAB_FILE" >> "$GITHUB_ENV"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-${{ env.BUILD_TYPE }}
+          path: |
+            ${{ env.APK_FILE }}
+            ${{ env.AAB_FILE }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    name: Publish
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Apply version overrides
+        if: env.VERSION_NAME_OVERRIDE != '' || env.VERSION_CODE_OVERRIDE != ''
+        env:
+          VERSION_NAME: ${{ env.VERSION_NAME_OVERRIDE }}
+          VERSION_CODE: ${{ env.VERSION_CODE_OVERRIDE }}
+        run: |
+          set -euo pipefail
+
+          FILE="app/build.gradle.kts"
+          if [ ! -f "$FILE" ]; then
+            FILE="$(find . -name "build.gradle.kts" -path "*/app/*" -print -quit)"
+          fi
+
+          if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
+            echo "::error::Could not locate app/build.gradle.kts"
+            exit 1
+          fi
+
+          if [ -n "$VERSION_NAME" ]; then
+            if ! [[ "$VERSION_NAME" =~ ^[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9._-]+)?$ ]]; then
+              echo "::error::Invalid version_name: $VERSION_NAME"
+              exit 1
+            fi
+
+            sed -i -E \
+              "s/versionName[[:space:]]*=[[:space:]]*\"[^\"]*\"/versionName = \"$VERSION_NAME\"/" \
+              "$FILE"
+          fi
+
+          if [ -n "$VERSION_CODE" ]; then
+            if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+              echo "::error::version_code must contain only digits."
+              exit 1
+            fi
+
+            sed -i -E \
+              "s/versionCode[[:space:]]*=[[:space:]]*[0-9]+/versionCode = $VERSION_CODE/" \
+              "$FILE"
+          fi
+
+      - name: Prepare publish environment
+        run: |
+          set -euo pipefail
+          echo "GRADLE_ROOT=." >> "$GITHUB_ENV"
+          echo "START_TIME=$(date -u -d '${{ github.run_started_at }}' +%s)" >> "$GITHUB_ENV"
+
+      - name: Download build outputs
+        if: needs.build.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android-${{ env.BUILD_TYPE }}
+          path: dl
+
+      - name: Locate downloaded files
+        if: needs.build.result == 'success'
+        run: |
+          set -euo pipefail
+          first() { find "$1" -type f -name "$2" -print -quit; }
+          APK_FILE="$(first "dl/android-$BUILD_TYPE" '*.apk')"
+          AAB_FILE="$(first "dl/android-$BUILD_TYPE" '*.aab')"
+          for f in "$APK_FILE" "$AAB_FILE"; do
+            [ -n "$f" ] && [ -f "$f" ] || { echo "::error::Missing build output."; exit 1; }
+          done
+          {
+            echo "APK_FILE=$APK_FILE"
+            echo "AAB_FILE=$AAB_FILE"
+          } >> "$GITHUB_ENV"
+
+      - name: Send Build Result to Telegram
+        id: report
+        if: needs.build.result == 'success' && env.TG_TOKEN != '' && env.TG_CHAT != ''
+        continue-on-error: true
+        env:
+          TELEGRAM_TOKEN: ${{ env.TG_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ env.TG_CHAT }}
+          TELEGRAM_THREAD_ID: ${{ env.TG_THREAD }}
+        run: |
+          set -u
+
+          END_TIME="$(date -u +%s)"
+          DURATION=$((END_TIME - START_TIME))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          START_FMT="$(
+            date -u -d "@$START_TIME" '+%I:%M:%S %p UTC'
+          )"
+
+          END_FMT="$(
+            date -u -d "@$END_TIME" '+%I:%M:%S %p UTC'
+          )"
+
+          if [ ! -f "$APK_FILE" ]; then
+            echo "::warning::APK not found: $APK_FILE"
+            exit 0
+          fi
+
+          GRADLE_FILE="$GRADLE_ROOT/app/build.gradle.kts"
+          if [ ! -f "$GRADLE_FILE" ]; then
+            GRADLE_FILE="$(find "$GRADLE_ROOT" -name "build.gradle.kts" -path "*/app/*" -print -quit || true)"
+          fi
+
+          STRINGS_FILE="$GRADLE_ROOT/app/src/main/res/values/strings.xml"
+          if [ ! -f "$STRINGS_FILE" ]; then
+            STRINGS_FILE="$(find "$GRADLE_ROOT" -name "strings.xml" -path "*/res/values/*" -print -quit || true)"
+          fi
+
+          PKG_NAME=""
+          VER_NAME=""
+          VER_CODE=""
+          APP_NAME=""
+
+          if [ -n "$GRADLE_FILE" ] && [ -f "$GRADLE_FILE" ]; then
+            PKG_NAME="$(grep -oP 'applicationId\s*=\s*"\K[^"]+' "$GRADLE_FILE" | head -n 1 || true)"
+            VER_NAME="$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$GRADLE_FILE" | head -n 1 || true)"
+            VER_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$GRADLE_FILE" | head -n 1 || true)"
+          fi
+
+          if [ -n "$STRINGS_FILE" ] && [ -f "$STRINGS_FILE" ]; then
+            APP_NAME="$(grep -oP '<string name="app_name">\K[^<]+' "$STRINGS_FILE" | head -n 1 || true)"
+          fi
+
+          PKG_NAME="${PKG_NAME:-com.aistudio.kfuportal.hgbvcd}"
+          VER_NAME="${VER_NAME:-1.0}"
+          VER_CODE="${VER_CODE:-1}"
+          APP_NAME="${APP_NAME:-جامعة كفر الشيخ}"
+
+          APK_SIZE_BYTES="$(stat -c%s "$APK_FILE")"
+
+          APK_SIZE_MB="$(
+            awk -v bytes="$APK_SIZE_BYTES" \
+              'BEGIN { printf "%.1f", bytes / 1048576 }'
+          )"
+
+          APK_SHA="$(
+            sha256sum "$APK_FILE" | awk '{print $1}'
+          )"
+
+          COMMIT_MSG="$(
+            git log -1 --pretty=format:'%s'
+          )"
+
+          SHORT_SHA="$(
+            git rev-parse --short HEAD
+          )"
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          html_escape() {
+            sed \
+              -e 's/&/\&amp;/g' \
+              -e 's/</\&lt;/g' \
+              -e 's/>/\&gt;/g'
+          }
+
+          APP_NAME_HTML="$(
+            printf '%s' "$APP_NAME" | html_escape
+          )"
+
+          COMMIT_MSG_HTML="$(
+            printf '%s' "$COMMIT_MSG" | html_escape
+          )"
+
+          CAPTION="$(
+            cat <<EOF
+          <b>Application:</b> $APP_NAME_HTML
+          <b>Package:</b> <code>$PKG_NAME</code>
+          <b>Version:</b> $VER_NAME
+          <b>Version Code:</b> $VER_CODE
+          <b>Build Type:</b> ${BUILD_TYPE^}
+
+          <b>Commit:</b> <a href="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}">$SHORT_SHA</a>
+          <b>Commit Message:</b> $COMMIT_MSG_HTML
+          <b>Commit Author:</b> <a href="${{ github.server_url }}/${{ github.actor }}">${{ github.actor }}</a>
+          <b>Branch:</b> <a href="${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}">${{ github.ref_name }}</a>
+
+          <b>Signature:</b> SHA256:
+          <code>$APK_SHA</code>
+
+          <b>APK Size:</b> $APK_SIZE_MB MiB
+
+          <b>Build Started:</b> $START_FMT
+          <b>Build Finished:</b> $END_FMT
+          <b>Build Duration:</b> $DURATION_STR
+
+          <b>Status:</b> Success ✅
+          EOF
+          )"
+
+          echo "VER_NAME=$VER_NAME" >> "$GITHUB_ENV"
+
+          {
+            echo "caption<<CAPTIONEOF"
+            echo "$CAPTION"
+            echo "CAPTIONEOF"
+          } >> "$GITHUB_OUTPUT"
+
+          MAX_SIZE=50331648
+
+          send_document() {
+            local FILE="$1"
+            local CAPTION="${2:-}"
+
+            if [ ! -f "$FILE" ]; then
+              echo "::warning::File not found: $FILE"
+              return 1
+            fi
+
+            local SIZE
+            SIZE="$(stat -c%s "$FILE")"
+
+            echo "Telegram upload:"
+            echo "  File: $FILE"
+            echo "  Size: $(numfmt --to=iec "$SIZE")"
+
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              --location \
+              --retry 3 \
+              --retry-all-errors \
+              --connect-timeout 15 \
+              --max-time 300 \
+              -F "chat_id=$TELEGRAM_CHAT_ID" \
+              -F "message_thread_id=$TELEGRAM_THREAD_ID" \
+              -F "document=@$FILE" \
+              --form-string "caption=$CAPTION" \
+              --form-string "parse_mode=HTML" \
+              "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendDocument"
+          }
+
+          if [ "$APK_SIZE_BYTES" -le "$MAX_SIZE" ]; then
+            echo "Sending APK to Telegram..."
+
+            SEND_FILE="$APK_FILE"
+            RENAMED_APK="$(dirname "$APK_FILE")/KFU-Portal.apk"
+            if cp "$APK_FILE" "$RENAMED_APK"; then
+              SEND_FILE="$RENAMED_APK"
+            fi
+
+            if ! send_document "$SEND_FILE" "$CAPTION"; then
+              echo "::warning::Telegram APK upload failed."
+            fi
+          else
+            echo "APK is larger than Telegram limit."
+
+            TEXT_MSG="$(
+              cat <<EOF
+          $CAPTION
+
+          ⚠️ <i>APK exceeds the Telegram upload limit.</i>
+
+          <a href="$RUN_URL">Download APK/AAB from GitHub Actions</a>
+          EOF
+            )"
+
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              --location \
+              --retry 3 \
+              --retry-all-errors \
+              --connect-timeout 15 \
+              --max-time 60 \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data "$(
+                jq -n \
+                  --arg chat_id "$TELEGRAM_CHAT_ID" \
+                  --arg thread_id "$TELEGRAM_THREAD_ID" \
+                  --arg text "$TEXT_MSG" \
+                  '{
+                    chat_id: $chat_id,
+                    message_thread_id: ($thread_id | tonumber),
+                    text: $text,
+                    parse_mode: "HTML",
+                    disable_web_page_preview: false
+                  }'
+              )" \
+              "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+              || echo "::warning::Telegram text notification failed."
+          fi
+
+      - name: Notify Telegram on Failure
+        if: needs.build.result == 'failure' && env.TG_TOKEN != '' && env.TG_CHAT != ''
+        continue-on-error: true
+        env:
+          TELEGRAM_TOKEN: ${{ env.TG_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ env.TG_CHAT }}
+          TELEGRAM_THREAD_ID: ${{ env.TG_THREAD }}
+        run: |
+          set -u
+
+          END_TIME="$(date -u +%s)"
+          DURATION=$((END_TIME - START_TIME))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          START_FMT="$(
+            date -u -d "@$START_TIME" '+%I:%M:%S %p UTC'
+          )"
+
+          END_FMT="$(
+            date -u -d "@$END_TIME" '+%I:%M:%S %p UTC'
+          )"
+
+          COMMIT_MSG="$(
+            git log -1 --pretty=format:'%s' 2>/dev/null || echo "Unknown"
+          )"
+
+          SHORT_SHA="$(
+            git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+          )"
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          html_escape() {
+            sed \
+              -e 's/&/\&amp;/g' \
+              -e 's/</\&lt;/g' \
+              -e 's/>/\&gt;/g'
+          }
+
+          COMMIT_MSG_HTML="$(
+            printf '%s' "$COMMIT_MSG" | html_escape
+          )"
+
+          FAIL_TEXT="$(
+            cat <<EOF
+          <b>Application:</b> Build Failed ⚠️
+
+          <b>Build Type:</b> ${BUILD_TYPE^}
+
+          <b>Commit:</b> <a href="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}">$SHORT_SHA</a>
+          <b>Commit Message:</b> $COMMIT_MSG_HTML
+          <b>Commit Author:</b> <a href="${{ github.server_url }}/${{ github.actor }}">${{ github.actor }}</a>
+          <b>Branch:</b> <a href="${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}">${{ github.ref_name }}</a>
+
+          <b>Build Started:</b> $START_FMT
+          <b>Build Finished:</b> $END_FMT
+          <b>Build Duration:</b> $DURATION_STR
+
+          <b>Status:</b> Failed ❌
+
+          <a href="$RUN_URL">View Build Logs</a>
+          EOF
+          )"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --location \
+            --retry 3 \
+            --retry-all-errors \
+            --connect-timeout 15 \
+            --max-time 60 \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "$(
+              jq -n \
+                --arg chat_id "$TELEGRAM_CHAT_ID" \
+                --arg thread_id "$TELEGRAM_THREAD_ID" \
+                --arg text "$FAIL_TEXT" \
+                '{
+                  chat_id: $chat_id,
+                  message_thread_id: ($thread_id | tonumber),
+                  text: $text,
+                  parse_mode: "HTML",
+                  disable_web_page_preview: true
+                }'
+            )" \
+            "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+            || true

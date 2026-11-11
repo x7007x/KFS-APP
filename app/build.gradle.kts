@@ -22,17 +22,24 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = System.getenv("KEY_ALIAS") ?: "AhmedNegm"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      // Prefer KEYSTORE_PATH when non-blank; an empty env var must not become file("")
+      val keystorePath = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() } ?: "${rootDir}/my-upload-key.jks"
+      val keystoreFile = file(keystorePath)
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = System.getenv("STORE_PASSWORD") ?: System.getenv("PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "AhmedNegm"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("PASSWORD") ?: System.getenv("STORE_PASSWORD")
+      }
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      val debugKs = file("${rootDir}/debug.keystore")
+      if (debugKs.exists()) {
+        storeFile = debugKs
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -42,11 +49,31 @@ android {
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      val releaseSigning = signingConfigs.getByName("release")
+      if (releaseSigning.storeFile != null) {
+        signingConfig = releaseSigning
+      }
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
+      val debugSigning = signingConfigs.getByName("debugConfig")
+      if (debugSigning.storeFile != null) {
+        signingConfig = debugSigning
+      }
     }
+  }
+  // Tiny size: the app only ships Arabic and English strings, and drops build-only metadata.
+  androidResources { localeFilters += listOf("ar", "en") }
+  packaging {
+    resources {
+      excludes += setOf(
+        "META-INF/{AL2.0,LGPL2.1}", "META-INF/INDEX.LIST", "META-INF/DEPENDENCIES", "META-INF/LICENSE*",
+        "META-INF/NOTICE*", "META-INF/*.kotlin_module", "DebugProbesKt.bin", "kotlin-tooling-metadata.json",
+      )
+    }
+  }
+  dependenciesInfo {
+    includeInApk = false
+    includeInBundle = false
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -77,8 +104,6 @@ dependencies {
   // implementation(libs.androidx.camera.core)
   // implementation(libs.androidx.camera.lifecycle)
   // implementation(libs.androidx.camera.view)
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
