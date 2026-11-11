@@ -194,8 +194,9 @@ fun DsMono(title: String, logoUrl: String?, fg: Color, bg: Color, size: Dp = 42.
                 contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
                 loading = {}, error = {},
                 success = {
+                    val imageScope = this
                     Box(Modifier.fillMaxSize().background(Color.White, CircleShape).padding(2.dp)) {
-                        SubcomposeAsyncImageContent()
+                        imageScope.SubcomposeAsyncImageContent()
                     }
                 },
             )
