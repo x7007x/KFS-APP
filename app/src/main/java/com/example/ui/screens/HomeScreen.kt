@@ -1,486 +1,351 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
-import com.example.R
 import com.example.data.HarDataCache
 import com.example.data.NewsArticle
 import com.example.data.RealStudentProfile
-import com.example.ui.components.ServiceIcon
-import com.example.ui.theme.*
+import com.example.ui.ds.BtnStyle
+import com.example.ui.ds.CollegeUi
+import com.example.ui.ds.DsButton
+import com.example.ui.ds.DsIcon
+import com.example.ui.ds.DsPic
+import com.example.ui.ds.DsSeg
+import com.example.ui.ds.GlassCircle
+import com.example.ui.ds.Motion
+import com.example.ui.ds.Notifs
+import com.example.ui.ds.QuickLinks
+import com.example.ui.ds.Svc
+import com.example.ui.ds.SvcStaff
+import com.example.ui.ds.SvcStudents
+import com.example.ui.ds.T
+import com.example.ui.ds.TabScaffold
+import com.example.ui.ds.TileGradients
+import com.example.ui.ds.dsClick
+import com.example.ui.ds.fmtDate
+import com.example.ui.ds.greeting
+import com.example.ui.ds.nf
+import com.example.ui.ds.pop
+import com.example.ui.ds.rise
+import com.example.ui.theme.Ds
 
-@Immutable data class ServiceCard(val label: String, val icon: String, val id: String, val webTitle: String)
+private const val HERO_URL = "https://www.arabcont.com/Images/ProjectImage/ConferenceHall_KafrElSheikhUniversity-01.jpg"
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AccountAvatar(profile: RealStudentProfile, size: androidx.compose.ui.unit.Dp, radius: androidx.compose.ui.unit.Dp, textSize: Float) {
+    val c = Ds.c
+    val faculty = remember(profile) { HarDataCache.findFacultyByInfoId(profile.asFacultyInfoId.toInt()) }
+    val photo = if (profile.photo.isNotBlank() && faculty != null) "https://kfs.edu.eg/${faculty.facUrl}/photo/${profile.photo}" else null
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(radius))
+            .background(Brush.linearGradient(listOf(Color(0xFF2F86D9), Color(0xFF1A5CAA)))),
+        contentAlignment = Alignment.Center,
+    ) {
+        T(profile.fullName.take(1), textSize, FontWeight.Bold, Color.White)
+        if (photo != null) {
+            SubcomposeAsyncImage(
+                model = ImageRequest.Builder(LocalContext.current).data(photo).crossfade(400).build(),
+                contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                loading = {}, error = {}, success = { SubcomposeAsyncImageContent() },
+            )
+        }
+    }
+}
+
 @Composable
 fun HomeScreen(
-    newsArticles: List<com.example.data.NewsArticle> = emptyList(),
-    loggedInProfile: com.example.data.RealStudentProfile? = null,
-    isRefreshing: Boolean = false,
-    onRefresh: () -> Unit = {},
-    onNavigateToTab: (Int) -> Unit,
-    onSelectNews: (com.example.data.NewsArticle) -> Unit,
-    onShowLogin: (isStaff: Boolean) -> Unit,
-    onTriggerService: (id: String, title: String) -> Unit,
-    onShowAboutDetail: (title: String) -> Unit,
-    onShowStudentProfile: () -> Unit,
-    onLogout: () -> Unit
+    scroll: ScrollState,
+    enterKey: Int,
+    news: List<NewsArticle>,
+    colleges: List<CollegeUi>,
+    profile: RealStudentProfile?,
+    isDark: Boolean,
+    refreshing: Boolean,
+    serviceTab: Int,
+    onServiceTab: (Int) -> Unit,
+    onRefresh: () -> Unit,
+    onToggleTheme: () -> Unit,
+    onBell: () -> Unit,
+    onLogin: () -> Unit,
+    onProfile: () -> Unit,
+    onLogout: () -> Unit,
+    onNewsAll: () -> Unit,
+    onNews: (NewsArticle, Rect) -> Unit,
+    onUrl: (String, String) -> Unit,
 ) {
-    val onStaffLogin = remember { { onShowLogin(true) } }
-    val onStudentLogin = remember { { onShowLogin(false) } }
-
-    val quickLinks = remember {
-        listOf(
-            Triple("مجلس جامعة\nكفر الشيخ", "group", "مجلس الجامعة"),
-            Triple("لماذا جامعة\nكفر الشيخ", "diamond", "لماذا الجامعة"),
-            Triple("عن الجامعة", "building", "عن الجامعة"),
-            Triple("رؤية ورسالة\nالجامعة", "eye", "رؤية ورسالة")
-        )
-    }
-
-    val studentServices = remember {
-        listOf(
-            ServiceCard("نتائج الطلاب", "clipboard_results", "stu_results_full", "نتائج الطلاب"),
-            ServiceCard("تسجيل المقررات", "edit_note", "stu_reg_courses", "تسجيل مقررات الساعات المعتمدة"),
-            ServiceCard("التنسيق الإلكتروني", "globe", "stu_coordination", "التنسيق الالكتروني"),
-            ServiceCard("الكشف الطبي", "medical_services", "stu_medical", "الكشف الطبي"),
-            ServiceCard("الدفع الإلكتروني", "wallet", "stu_payment", "منظومة الدفع الالكتروني"),
-            ServiceCard("البريد الإلكتروني", "envelope", "stu_mail_full", "البريد الإلكتروني"),
-            ServiceCard("ميثاق الطالب", "description", "stu_charter", "ميثاق الطالب"),
-            ServiceCard("منصة المقررات", "graduation_cap", "stu_thinqi", "منصة المقررات الالكترونيه"),
-            ServiceCard("التربية العسكرية", "military", "stu_military_full", "التربية العسكرية"),
-            ServiceCard("المكتبة الرقمية", "book", "stu_digital_lib", "المكتبة الرقمية"),
-            ServiceCard("سكن الطلاب", "home", "stu_housing", "سكن الطلاب"),
-            ServiceCard("الاستمارة النهائية", "description", "stu_final_form", "الاستماره الخاصه بالفرقه النهائية"),
-        )
-    }
-
-    val staffServices = remember {
-        listOf(
-            ServiceCard("دليل أعضاء التدريس", "group", "staff_directory", "دليل أعضاء هيئة التدريس"),
-            ServiceCard("البحث عن عضو تدريس", "search", "staff_search", "البحث عن عضو هيئة تدريس"),
-            ServiceCard("البريد الإلكتروني", "envelope", "staff_mail", "البريد الإلكتروني"),
-            ServiceCard("المكتبة الرقمية", "book", "staff_digital_lib", "المكتبة الرقمية"),
-            ServiceCard("دورات تنمية القدرات", "graduation_cap", "staff_courses", "دورات تنمية قدرات أعضاء هيئة التدريس"),
-            ServiceCard("منصة المقررات thinqi", "globe", "staff_thinqi", "منصة المقررات الالكترونيه"),
-            ServiceCard("اختبارات القدرات", "clipboard_results", "staff_moodle", "اختبارات تنمية قدرات أعضاء هيئة التدريس"),
-            ServiceCard("دورات التحول الرقمي", "calendar_today", "staff_ictt", "حجز دورات التحول الرقمى"),
-            ServiceCard("الهوية الرقمية RDI", "badge", "staff_rdi", "الهوية الرقمية للباحث"),
-            ServiceCard("تسجيل الأبحاث", "edit_note", "staff_papers", "تسجيل الابحاث"),
-            ServiceCard("صمم موقعك بنفسك", "globe", "staff_cv", "صمم موقعك بنفسك"),
-            ServiceCard("المجلات العلمية", "book", "staff_journals", "المجلات العلمية المعتمدة"),
-            ServiceCard("المعامل البحثية", "medical_services", "staff_labs", "المعامل البحثية"),
-            ServiceCard("المراكز البحثية", "building", "staff_centers", "المراكز البحثية"),
-        )
-    }
-
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize().background(KfuBackground)
+    val c = Ds.c
+    var swaps by remember { mutableIntStateOf(0) }
+    TabScaffold(
+        scroll = scroll, title = "جامعة كفر الشيخ", showLogo = true,
+        refreshing = refreshing, onRefresh = onRefresh,
+        trailing = {
+            GlassCircle(if (isDark) "sun" else "moon", "تبديل المظهر", onToggleTheme)
+            GlassCircle("bell", "الإشعارات", onBell, badge = nf(Notifs.size))
+            if (profile != null) {
+                Box(Modifier.dsClick(.88f, onClick = onProfile)) { AccountAvatar(profile, 38.dp, 19.dp, 15f) }
+            } else {
+                GlassCircle("user", "تسجيل الدخول", onLogin)
+            }
+        },
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 16.dp)
+        // large title
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) {
+            T(if (profile != null) "مرحباً ${profile.fullName.split(" ").first()}" else greeting(), 13f, FontWeight.SemiBold, c.green)
+            T("جامعة كفر الشيخ", 33f, FontWeight.Bold, c.label, lh = 1.25f)
+        }
+
+        // hero with parallax
+        val collegeCount = colleges.count { it.type < 4 }
+        val serviceCount = SvcStudents.size + SvcStaff.size
+        Box(
+            Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(208.dp).rise(1, enterKey)
+                .shadow(14.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(c.tintD),
         ) {
-            if (loggedInProfile != null) {
-                item(key = "profile") {
-                    val faculty = remember(loggedInProfile) { HarDataCache.findFacultyByInfoId(loggedInProfile.asFacultyInfoId.toInt()) }
-                    val collegeName = faculty?.factitel ?: ""
-                    val firstName = loggedInProfile.fullName.split(" ").firstOrNull() ?: loggedInProfile.fullName
-                    val photoUrl = faculty?.let { "https://kfs.edu.eg/${it.facUrl}/photo/${loggedInProfile.photo}" } ?: ""
-
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .border(1.dp, KfuBorder, RoundedCornerShape(16.dp)),
-                        colors = CardDefaults.cardColors(containerColor = KfuSurface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                                    Text(
-                                        text = "مرحباً $firstName",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = KfuBlue,
-                                        textAlign = TextAlign.Start
-                                    )
-                                    if (collegeName.isNotBlank()) {
-                                        Text(
-                                            text = collegeName,
-                                            fontSize = 12.sp,
-                                            color = KfuGreen,
-                                            fontWeight = FontWeight.SemiBold,
-                                            textAlign = TextAlign.Start
-                                        )
-                                    }
-                                    Text(
-                                        text = loggedInProfile.programName,
-                                        fontSize = 11.sp,
-                                        color = Color.Gray,
-                                        textAlign = TextAlign.Start
-                                    )
-                                }
-                                if (loggedInProfile.photo.isNotBlank()) {
-                                    val fallback = "https://ahmed-negm.pages.dev/images/5e1f1d9d-58df-4e68-b5b6-94e7ec7375db.jpg"
-                                    SubcomposeAsyncImage(
-                                        model = photoUrl,
-                                        contentDescription = "صورة الطالب",
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .clip(RoundedCornerShape(12.dp)),
-                                        contentScale = ContentScale.Crop,
-                                        error = {
-                                            AsyncImage(
-                                                model = fallback,
-                                                contentDescription = "صورة الطالب",
-                                                modifier = Modifier
-                                                    .size(56.dp)
-                                                    .clip(RoundedCornerShape(12.dp)),
-                                                contentScale = ContentScale.Crop
-                                            )
-                                        }
-                                    )
-                                } else {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.logo_university),
-                                        contentDescription = "صورة الطالب",
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FilledTonalButton(
-                                    onClick = onShowStudentProfile,
-                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = KfuGreen, contentColor = Color.White),
-                                    shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                    modifier = Modifier.weight(1f).height(40.dp)
-                                ) {
-                                    Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("حسابي", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                }
-                                FilledTonalButton(
-                                    onClick = onLogout,
-                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFFEE2E2), contentColor = Color.Red),
-                                    shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                                    modifier = Modifier.weight(1f).height(40.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "تسجيل خروج", modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("تسجيل خروج", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                item(key = "login_buttons") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Button(
-                            onClick = onStudentLogin,
-                            colors = ButtonDefaults.buttonColors(containerColor = KfuBlue),
-                            modifier = Modifier
-                                .testTag("student_login_button"),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                                ServiceIcon(name = "graduation_cap", color = Color.White, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "تسجيل الدخول", color = Color.White, fontSize = 14.sp)
-                            }
-                        }
-                    }
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current).data(HERO_URL).crossfade(500).build(),
+                contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    val s = scroll.value * .22f
+                    translationY = minOf(60.dp.toPx(), s)
+                    scaleX = 1.2f; scaleY = 1.2f
+                },
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color(0x1A0D3D75), .45f to Color(0x590D3D75), 1f to Color(0xE0071C3A),
+                    ),
+                ),
+            )
+            Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                T("كل خدمات الجامعة في مكان واحد", 21f, FontWeight.Bold, Color.White, lh = 1.35f, modifier = Modifier.widthIn(max = 315.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroChip("building", "${nf(collegeCount)} كلية ومعهد")
+                    HeroChip("grid", "${nf(serviceCount)} خدمة")
                 }
             }
+        }
 
-            item(key = "banner") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, KfuBorder, RoundedCornerShape(16.dp))
+        // account card
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).rise(2, enterKey)) {
+            if (profile != null) LoggedInCard(profile, onProfile, onLogout) else LoggedOutCard(onLogin)
+        }
+
+        // news
+        SectionHeader("أهم الأخبار", "عرض الكل", onNewsAll, Modifier.rise(3, enterKey))
+        val rail = rememberLazyListState()
+        val shown = news.take(8)
+        if (shown.isEmpty()) {
+            Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) { T("لا توجد أخبار متاحة حالياً", 14f, color = c.label2) }
+        } else {
+            LazyRow(
+                state = rail, flingBehavior = rememberSnapFlingBehavior(rail),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.rise(4, enterKey),
+            ) {
+                itemsIndexed(shown, key = { _, a -> a.id }) { i, a ->
+                    NewsCard(a, i, rail, onNews)
+                }
+            }
+        }
+
+        // quick links
+        SectionHeader("روابط سريعة", null, {}, Modifier.rise(5, enterKey))
+        Row(Modifier.padding(horizontal = 16.dp).rise(6, enterKey), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            QuickLinks.forEach { q ->
+                Column(
+                    Modifier.weight(1f).heightIn(min = 94.dp).clip(RoundedCornerShape(20.dp)).background(c.surface)
+                        .border(.5.dp, c.sep, RoundedCornerShape(20.dp)).dsClick { onUrl(q.url, q.title) }
+                        .padding(start = 4.dp, end = 4.dp, top = 14.dp, bottom = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    AsyncImage(
-                        model = "https://www.arabcont.com/Images/ProjectImage/ConferenceHall_KafrElSheikhUniversity-01.jpg",
-                        contentDescription = "جامعة كفر الشيخ",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    DsIcon(q.icon, c.tint, 26.dp, 1.7f)
+                    T(q.label, 11.5f, FontWeight.SemiBold, c.label, lh = 1.4f, align = TextAlign.Center)
                 }
             }
+        }
 
-            item(key = "news_header") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "أهم الأخبار", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = KfuBlue, textAlign = TextAlign.Right)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { onNavigateToTab(1) }.testTag("view_all_news_link")
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = KfuBlue, modifier = Modifier.size(16.dp))
-                        Text(text = "عرض الكل", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = KfuBlue)
-                    }
-                }
-            }
+        // services
+        SectionHeader("الخدمات", null, {}, Modifier.rise(7, enterKey))
+        Column(Modifier.rise(8, enterKey)) {
+            DsSeg(listOf("الطلاب", "أعضاء هيئة التدريس"), serviceTab, { swaps++; onServiceTab(it) }, Modifier.padding(horizontal = 16.dp))
+            ServiceGrid(if (serviceTab == 0) SvcStudents else SvcStaff, swapKey = swaps, onUrl = onUrl)
+        }
+    }
+}
 
-            if (newsArticles.isEmpty()) {
-                item(key = "news_empty") {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(160.dp).padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "لا توجد أخبار متاحة حالياً", fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center)
-                    }
-                }
-            } else {
-                item(key = "news_cards") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        newsArticles.take(8).forEach { article ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = KfuSurface),
-                                modifier = Modifier
-                                    .width(260.dp)
-                                    .clickable { onSelectNews(article) }
-                                    .border(1.dp, KfuBorder, RoundedCornerShape(12.dp))
-                                    .testTag("news_card_${article.id}"),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Column {
-                                    if (article.imageUrl.isNotBlank()) {
-                                        AsyncImage(
-                                            model = article.imageUrl,
-                                            contentDescription = article.title,
-                                            modifier = Modifier.fillMaxWidth().height(120.dp),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        Image(
-                                            painter = painterResource(id = article.imageRes),
-                                            contentDescription = article.title,
-                                            modifier = Modifier.fillMaxWidth().height(120.dp),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(
-                                            text = article.date, fontSize = 11.sp, color = Color.Gray,
-                                            fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = article.title, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                                            color = KfuTextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                            lineHeight = 18.sp, textAlign = TextAlign.Right, modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+@Composable
+private fun HeroChip(icon: String, text: String) {
+    Row(
+        Modifier.height(28.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x2EFFFFFF)).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DsIcon(icon, Color.White, 14.dp, 2f)
+        T(text, 12.5f, FontWeight.Medium, Color.White, lh = 1.2f)
+    }
+}
 
-            item(key = "quick_links_header") {
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                    Text(text = "روابط سريعة", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = KfuBlue,
-                        modifier = Modifier.padding(horizontal = 12.dp))
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-
-            item(key = "quick_links") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    quickLinks.forEach { (label, iconName, id) ->
-                        Card(
-                            modifier = Modifier
-                                .weight(1f).height(100.dp)
-                                .clickable { onShowAboutDetail(id) }
-                                .border(1.dp, KfuBorder, RoundedCornerShape(10.dp)),
-                            colors = CardDefaults.cardColors(containerColor = KfuSurface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize().padding(6.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                ServiceIcon(name = iconName, color = KfuBlue, modifier = Modifier.size(24.dp))
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                    color = KfuTextPrimary, textAlign = TextAlign.Center, lineHeight = 13.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            item(key = "student_services_header") {
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                    Text(text = "خدمات الطلاب", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = KfuBlue,
-                        modifier = Modifier.padding(horizontal = 12.dp))
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            item(key = "student_services") {
-                ServiceGrid(
-                    services = studentServices,
-                    onTriggerService = onTriggerService
-                )
-            }
-
-            item(key = "staff_services_header") {
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                    Text(text = "خدمات أعضاء هيئة التدريس", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = KfuBlue,
-                        modifier = Modifier.padding(horizontal = 12.dp))
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            item(key = "staff_services") {
-                ServiceGrid(
-                    services = staffServices,
-                    onTriggerService = onTriggerService
-                )
+@Composable
+fun SectionHeader(title: String, action: String?, onAction: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Ds.c
+    Row(
+        modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom,
+    ) {
+        T(title, 20f, FontWeight.Bold, c.label, lh = 1.3f)
+        if (action != null) {
+            Row(Modifier.dsClick(.94f, onClick = onAction), verticalAlignment = Alignment.CenterVertically) {
+                T(action, 14f, FontWeight.Medium, c.tint)
+                DsIcon("chevL", c.tint, 16.dp, 2.2f)
             }
         }
     }
 }
 
 @Composable
-fun ServiceGrid(
-    services: List<ServiceCard>,
-    onTriggerService: (id: String, title: String) -> Unit
-) {
-    val rows = services.chunked(4)
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+private fun LoggedOutCard(onLogin: () -> Unit) {
+    val c = Ds.c
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).border(.5.dp, c.sep, RoundedCornerShape(22.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        rows.forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowItems.forEach { card ->
-                    Card(
-                        modifier = Modifier
-                            .weight(1f).height(85.dp)
-                            .clickable { onTriggerService(card.id, card.webTitle) }
-                            .border(1.dp, KfuBorder, RoundedCornerShape(10.dp))
-                            .testTag("service_card_${card.id}"),
-                        colors = CardDefaults.cardColors(containerColor = KfuSurface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        shape = RoundedCornerShape(10.dp)
+        Box(Modifier.size(46.dp).background(c.tintSoft, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
+            DsIcon("cap", c.tint, 26.dp)
+        }
+        Column(Modifier.weight(1f)) {
+            T("سجّل الدخول لحسابك", 15f, FontWeight.SemiBold, c.label)
+            T("ادخل بالرقم القومي لعرض بياناتك وخدماتك.", 12.5f, color = c.label2, lh = 1.45f)
+        }
+        DsButton("دخول", onLogin)
+    }
+}
+
+@Composable
+private fun LoggedInCard(profile: RealStudentProfile, onProfile: () -> Unit, onLogout: () -> Unit) {
+    val c = Ds.c
+    val faculty = remember(profile) { HarDataCache.findFacultyByInfoId(profile.asFacultyInfoId.toInt()) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).border(.5.dp, c.sep, RoundedCornerShape(22.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AccountAvatar(profile, 54.dp, 18.dp, 20f)
+            Column(Modifier.weight(1f)) {
+                T("مرحباً ${profile.fullName.split(" ").first()}", 16.5f, FontWeight.SemiBold, c.label)
+                if (faculty != null) T(faculty.factitel, 12.5f, FontWeight.SemiBold, c.green)
+                T(profile.programName, 12f, color = c.label2)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DsButton("حسابي", onProfile, Modifier.weight(1f), icon = "user")
+            DsButton("تسجيل خروج", onLogout, Modifier.weight(1f), icon = "logout", style = BtnStyle.Red)
+        }
+    }
+}
+
+/** News card: scales to 92% and fades to 65% as it moves away from the centre of the rail. */
+@Composable
+private fun NewsCard(a: NewsArticle, index: Int, rail: androidx.compose.foundation.lazy.LazyListState, onNews: (NewsArticle, Rect) -> Unit) {
+    val c = Ds.c
+    var bounds by remember { mutableStateOf(Rect.Zero) }
+    Column(
+        Modifier.width(266.dp)
+            .graphicsLayer {
+                val info = rail.layoutInfo
+                val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+                if (item != null) {
+                    val vpW = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
+                    val center = info.viewportStartOffset + vpW / 2f
+                    val d = (kotlin.math.abs(item.offset + item.size / 2f - center) / (vpW * .8f)).coerceIn(0f, 1f)
+                    val s = 1f - d * .08f
+                    scaleX = s; scaleY = s; alpha = 1f - d * .35f
+                }
+            }
+            .shadow(6.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.surface)
+            .border(.5.dp, c.sep, RoundedCornerShape(24.dp))
+            .onGloballyPositioned { bounds = it.boundsInRoot() }
+            .dsClick(.97f) { onNews(a, bounds) },
+    ) {
+        DsPic(a.imageUrl, a.topicId, Modifier.fillMaxWidth().height(150.dp))
+        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            T(fmtDate(a.date), 12f, FontWeight.SemiBold, c.green, lh = 1.3f)
+            T(a.title, 14.5f, FontWeight.SemiBold, c.label, lh = 1.55f, maxLines = 2)
+        }
+    }
+}
+
+@Composable
+fun ServiceGrid(list: List<Svc>, swapKey: Int, onUrl: (String, String) -> Unit) {
+    val c = Ds.c
+    val rows = list.chunked(4)
+    Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 18.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        var k = 0
+        rows.forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { s ->
+                    val idx = k++
+                    val g = TileGradients[idx % TileGradients.size]
+                    val tileMod = if (swapKey != 0) Modifier.pop(idx, swapKey) else Modifier
+                    Column(
+                        Modifier.weight(1f).then(tileMod).dsClick(.88f) { onUrl(s.url, s.title) },
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(4.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            ServiceIcon(name = card.icon, color = KfuBlue, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = card.label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = KfuTextPrimary, textAlign = TextAlign.Center, lineHeight = 13.sp)
-                        }
+                        Box(
+                            Modifier.size(58.dp)
+                                .shadow(8.dp, RoundedCornerShape(17.dp), ambientColor = Color(g.second), spotColor = Color(g.second))
+                                .clip(RoundedCornerShape(17.dp))
+                                .background(Brush.linearGradient(listOf(Color(g.first), Color(g.second)))),
+                            contentAlignment = Alignment.Center,
+                        ) { DsIcon(s.icon, Color.White, 27.dp, 1.7f) }
+                        T(s.label, 11.5f, FontWeight.Medium, c.label, lh = 1.35f, align = TextAlign.Center, maxLines = 2)
                     }
                 }
-                repeat(4 - rowItems.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

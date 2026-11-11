@@ -8,7 +8,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val MiSansArabicFont = FontFamily(Font(R.font.misansarabic_regular))
+// Weights used by the redesign: 400, 500, 600, 700 (the design artifact used IBM Plex Sans Arabic).
+val MiSansArabicFont = FontFamily(
+  Font(R.font.misansarabic_regular, FontWeight.Normal),
+  Font(R.font.misansarabic_medium, FontWeight.Medium),
+  Font(R.font.misansarabic_semibold, FontWeight.SemiBold),
+  Font(R.font.misansarabic_bold, FontWeight.Bold),
+)
 
 val Typography =
   Typography(

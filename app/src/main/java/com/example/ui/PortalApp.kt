@@ -5,913 +5,509 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import androidx.activity.compose.BackHandler
-
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-
-import androidx.compose.foundation.Image
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import coil.compose.AsyncImage
-import com.example.R
+import com.example.data.CacheManager
+import com.example.data.DataFetchCache
 import com.example.data.HarDataCache
+import com.example.data.KfuNetworkClient
 import com.example.data.NewsArticle
+import com.example.data.RealStudentProfile
 import com.example.data.SessionManager
 import com.example.data.toArticle
 import com.example.data.toNewsArticle
-import kotlinx.coroutines.async
+import com.example.ui.ds.CollegeUi
+import com.example.ui.ds.DsIcon
+import com.example.ui.ds.LocalToast
+import com.example.ui.ds.Motion
+import com.example.ui.ds.T
+import com.example.ui.ds.dsClick
+import com.example.ui.overlays.BrowserSheet
+import com.example.ui.overlays.LocalSheetProgress
+import com.example.ui.overlays.LoginSheet
+import com.example.ui.overlays.LogoutSheet
+import com.example.ui.overlays.MessageSheet
+import com.example.ui.overlays.NotificationsSheet
+import com.example.ui.screens.CollegePage
+import com.example.ui.screens.CollegesScreen
+import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.MoreScreen
+import com.example.ui.screens.NewsDetail
+import com.example.ui.screens.NewsScreen
+import com.example.ui.screens.ProfilePage
+import com.example.ui.screens.SplashOverlay
+import com.example.ui.theme.Ds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.ui.screens.*
-import com.example.ui.theme.*
+import kotlin.math.roundToInt
 
-data class BottomTabItem(
-    val index: Int,
-    val label: String,
-    val iconName: String,
-    val tag: String
-)
+private sealed interface PageKind {
+    data class College(val college: CollegeUi) : PageKind
+    data object Profile : PageKind
+}
 
-@OptIn(ExperimentalMaterial3Api::class)
+private var pageSeq = 0
+
+private class PageEntry(val kind: PageKind) {
+    val id = pageSeq++
+    var shown by mutableStateOf(false)
+}
+
+private class NewsDetailState(val article: NewsArticle, val source: Rect)
+
+private sealed interface SheetKind {
+    data object Login : SheetKind
+    data object Notifs : SheetKind
+    data object Message : SheetKind
+    data object Logout : SheetKind
+    data class Browser(val url: String, val title: String) : SheetKind
+}
+
+private class ToastData(val message: String, val icon: String)
+
+private val TabLabels = listOf("الرئيسية" to "home", "الأخبار" to "news", "الكليات" to "cap", "المزيد" to "grid")
+
+private fun profileToJson(p: RealStudentProfile): String = org.json.JSONObject().apply {
+    put("NATIONAL_NUMBER", p.nationalNumber); put("FULL_NAME_AR", p.fullName)
+    put("METHOD_DESCR", p.email); put("METHOD_NOTES", p.notes); put("STUD_CODE", p.studentCode)
+    put("PASSWORD_ITEC", p.passwordItec); put("phase_parent", p.phaseParent); put("GENDER_DESCR_AR", p.gender)
+    put("CASE_DESCR_AR", p.caseDescr); put("RELIGION_DESCR_AR", p.religion); put("METHOD_DESCR_AR", p.methodDescr)
+    put("NATURE_DESCR_AR", p.natureDescr); put("ED_CODE_STUD_ENROLL_AR", p.enrollStatus)
+    put("Program_Name", p.programName); put("AS_FACULTY_INFO_ID", p.asFacultyInfoId); put("STUD_PHOTO", p.photo)
+}.toString()
+
+private fun buildColleges(): List<CollegeUi> {
+    val live = if (DataFetchCache.collegesLoaded) {
+        (DataFetchCache.medicalColleges + DataFetchCache.scientificColleges + DataFetchCache.humanitiesColleges)
+            .map { CollegeUi(it.facId, it.title, it.logo, it.urlName, it.typeId, it.asFacultyInfoId) }
+    } else {
+        HarDataCache.allFaculties.filter { it.factype in 1..3 }
+            .map { CollegeUi(it.facId, it.factitel, it.facLogo, it.facUrl, it.factype, it.asFacultyInfoId) }
+    }
+    val military = HarDataCache.allFaculties.filter { it.factype == 4 }
+        .map { CollegeUi(it.facId, it.factitel, it.facLogo, it.facUrl, it.factype, it.asFacultyInfoId) }
+    return live + military
+}
+
 @Composable
-fun PortalApp() {
+fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        val c = Ds.c
         val context = LocalContext.current
-        val sessionManager = remember { SessionManager.getInstance(context) }
-
-        var showSplash by remember { mutableStateOf(true) }
-        var selectedTabIndex by remember { mutableStateOf(0) }
-
-        var showDrawerMenu by remember { mutableStateOf(false) }
-        var showNotificationCenter by remember { mutableStateOf(false) }
-        var selectedNewsArticle by remember { mutableStateOf<NewsArticle?>(null) }
-        var activeWebViewUrl by remember { mutableStateOf<String?>(null) }
-        var activeWebViewTitle by remember { mutableStateOf("") }
-
-        var liveNewsList by remember { mutableStateOf<List<NewsArticle>>(HarDataCache.universityNews.map { it.toArticle() }) }
-        var isNewsLoading by remember { mutableStateOf(false) }
-
-        var showLoginType by remember { mutableStateOf<String?>(null) }
-        var loggedInProfile by remember { mutableStateOf<com.example.data.RealStudentProfile?>(null) }
-        var isCheckingSession by remember { mutableStateOf(true) }
-
-        var showStudentProfile by remember { mutableStateOf(false) }
-        var cameFromProfile by remember { mutableStateOf(false) }
-
-        var isHomeRefreshing by remember { mutableStateOf(false) }
-        var isNewsRefreshing by remember { mutableStateOf(false) }
-        var isCollegesRefreshing by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
-
+        val sessionManager = remember { SessionManager.getInstance(context) }
         val isOnline by rememberConnectivityState(context)
 
-        val onHomeRefresh = remember {
-            {
-                isHomeRefreshing = true
-                scope.launch {
-                    try {
-                        val items = com.example.data.KfuNetworkClient.fetchLatestNews()
-                        if (items.isNotEmpty()) {
-                            com.example.data.DataFetchCache.latestNews = items
-                            com.example.data.DataFetchCache.newsLoaded = true
-                            liveNewsList = items.map { it.toNewsArticle() }
-                            com.example.data.CacheManager.saveNewsToCache(context, items)
-                        }
-                    } catch (_: Exception) { }
-                    isHomeRefreshing = false
-                }
-                Unit
-            }
-        }
+        // ---- state
+        var splashVisible by remember { mutableStateOf(true) }
+        var splashClosing by remember { mutableStateOf(false) }
+        var tab by remember { mutableIntStateOf(0) }
+        var tabDir by remember { mutableIntStateOf(1) }
+        val visits = remember { mutableStateListOf(0, 0, 0, 0) }
+        val scrolls = listOf(rememberScrollState(), rememberScrollState(), rememberScrollState(), rememberScrollState())
+        var newsQuery by remember { mutableStateOf("") }
+        var collegeQuery by remember { mutableStateOf("") }
+        var serviceTab by remember { mutableIntStateOf(0) }
 
-        val onNewsRefresh = remember {
-            {
-                isNewsRefreshing = true
-                scope.launch {
-                    com.example.data.DataFetchCache.newsLoaded = false
-                    try {
-                        val items = com.example.data.KfuNetworkClient.fetchLatestNews()
-                        if (items.isNotEmpty()) {
-                            com.example.data.DataFetchCache.latestNews = items
-                            com.example.data.DataFetchCache.newsLoaded = true
-                            liveNewsList = items.map { it.toNewsArticle() }
-                            com.example.data.CacheManager.saveNewsToCache(context, items)
-                        }
-                    } catch (_: Exception) { }
-                    isNewsRefreshing = false
-                }
-                Unit
-            }
-        }
+        var news by remember { mutableStateOf(HarDataCache.universityNews.map { it.toArticle() }) }
+        var collegesTick by remember { mutableIntStateOf(0) }
+        val colleges = remember(collegesTick) { buildColleges() }
+        var profile by remember { mutableStateOf<RealStudentProfile?>(null) }
+        var homeRefreshing by remember { mutableStateOf(false) }
+        var newsRefreshing by remember { mutableStateOf(false) }
 
-        val onCollegesRefresh = remember {
-            {
-                isCollegesRefreshing = true
-                scope.launch {
-                    try {
-                        val med = com.example.data.KfuNetworkClient.fetchColleges("2")
-                        val sci = com.example.data.KfuNetworkClient.fetchColleges("1")
-                        val hum = com.example.data.KfuNetworkClient.fetchColleges("3")
-                        com.example.data.DataFetchCache.medicalColleges = med
-                        com.example.data.DataFetchCache.scientificColleges = sci
-                        com.example.data.DataFetchCache.humanitiesColleges = hum
-                        com.example.data.DataFetchCache.collegesLoaded = true
-                        com.example.data.CacheManager.saveCollegesToCache(context, med, "2")
-                        com.example.data.CacheManager.saveCollegesToCache(context, sci, "1")
-                        com.example.data.CacheManager.saveCollegesToCache(context, hum, "3")
-                    } catch (_: Exception) { }
-                    isCollegesRefreshing = false
+        val pages = remember { mutableStateListOf<PageEntry>() }
+        var detail by remember { mutableStateOf<NewsDetailState?>(null) }
+        var sheet by remember { mutableStateOf<SheetKind?>(null) }
+        var sheetP by remember { mutableFloatStateOf(0f) }
+        var toast by remember { mutableStateOf<ToastData?>(null) }
+        var toastShown by remember { mutableStateOf(false) }
+        var toastSeq by remember { mutableIntStateOf(0) }
+
+        val showToast: (String, String) -> Unit = remember { { m, i -> toast = ToastData(m, i); toastShown = true; toastSeq++ } }
+        LaunchedEffect(toastSeq) { if (toastShown) { delay(2200); toastShown = false } }
+
+        // ---- data (same sources and caches as before the redesign)
+        suspend fun loadNews(force: Boolean) {
+            if (force) DataFetchCache.newsLoaded = false
+            if (DataFetchCache.newsLoaded) return
+            try {
+                val items = KfuNetworkClient.fetchLatestNews()
+                if (items.isNotEmpty()) {
+                    DataFetchCache.latestNews = items; DataFetchCache.newsLoaded = true
+                    news = items.map { it.toNewsArticle() }
+                    CacheManager.saveNewsToCache(context, items)
                 }
-                Unit
+            } catch (_: Exception) {
+                val cached = CacheManager.loadNewsFromCache(context)
+                if (cached.isNotEmpty()) {
+                    DataFetchCache.latestNews = cached; DataFetchCache.newsLoaded = true
+                    news = cached.map { it.toNewsArticle() }
+                }
             }
         }
 
         LaunchedEffect(Unit) {
+            launch { loadNews(false) }
             launch {
-                if (!com.example.data.DataFetchCache.newsLoaded) {
-                    isNewsLoading = true
+                if (!DataFetchCache.collegesLoaded) {
                     try {
-                        val items = com.example.data.KfuNetworkClient.fetchLatestNews()
-                        if (items.isNotEmpty()) {
-                            com.example.data.DataFetchCache.latestNews = items
-                            com.example.data.DataFetchCache.newsLoaded = true
-                            liveNewsList = items.map { it.toNewsArticle() }
-                            com.example.data.CacheManager.saveNewsToCache(context, items)
+                        val med = KfuNetworkClient.fetchColleges("2")
+                        val sci = KfuNetworkClient.fetchColleges("1")
+                        val hum = KfuNetworkClient.fetchColleges("3")
+                        if (med.isNotEmpty() || sci.isNotEmpty() || hum.isNotEmpty()) {
+                            DataFetchCache.medicalColleges = med; DataFetchCache.scientificColleges = sci
+                            DataFetchCache.humanitiesColleges = hum; DataFetchCache.collegesLoaded = true
+                            CacheManager.saveCollegesToCache(context, med, "2")
+                            CacheManager.saveCollegesToCache(context, sci, "1")
+                            CacheManager.saveCollegesToCache(context, hum, "3")
+                            collegesTick++
                         }
                     } catch (_: Exception) {
-                        val cached = com.example.data.CacheManager.loadNewsFromCache(context)
-                        if (cached.isNotEmpty()) {
-                            com.example.data.DataFetchCache.latestNews = cached
-                            com.example.data.DataFetchCache.newsLoaded = true
-                            liveNewsList = cached.map { it.toNewsArticle() }
+                        val med = CacheManager.loadCollegesFromCache(context, "2")
+                        val sci = CacheManager.loadCollegesFromCache(context, "1")
+                        val hum = CacheManager.loadCollegesFromCache(context, "3")
+                        if (med.isNotEmpty() || sci.isNotEmpty() || hum.isNotEmpty()) {
+                            DataFetchCache.medicalColleges = med; DataFetchCache.scientificColleges = sci
+                            DataFetchCache.humanitiesColleges = hum; DataFetchCache.collegesLoaded = true
+                            collegesTick++
                         }
-                    } finally {
-                        isNewsLoading = false
                     }
                 }
             }
-
-            if (sessionManager.isLoggedIn()) {
-                val profile = sessionManager.getSavedProfile()
-                if (profile != null) {
-                    loggedInProfile = profile
-                }
-            }
-            isCheckingSession = false
+            if (sessionManager.isLoggedIn()) profile = sessionManager.getSavedProfile()
         }
 
-        if (showSplash) {
-            SplashScreen(onSplashFinished = { showSplash = false })
-            return@CompositionLocalProvider
+        // ---- actions
+        fun selectTab(i: Int) {
+            if (i == tab) { scope.launch { scrolls[i].animateScrollTo(0) }; return }
+            tabDir = if (i > tab) 1 else -1
+            tab = i
+            visits[i] = visits[i] + 1
         }
-
-        val rightLogo = remember(loggedInProfile) {
-            loggedInProfile?.let { profile ->
-                val faculty = HarDataCache.findFacultyByInfoId(profile.asFacultyInfoId.toInt())
-                faculty?.let { "https://kfs.edu.eg/kfsapi/flogo/${it.facLogo}" }
-            }
+        fun openUrl(url: String, title: String) { sheet = SheetKind.Browser(url, title) }
+        fun pushPage(kind: PageKind) { if (pages.lastOrNull()?.kind != kind) pages.add(PageEntry(kind)) }
+        fun popTop() {
+            val e = pages.lastOrNull() ?: return
+            e.shown = false
+            scope.launch { delay(520); pages.remove(e) }
         }
+        fun openNews(a: NewsArticle, r: Rect) { detail = NewsDetailState(a, r) }
 
-        val bottomTabs = remember {
-            listOf(
-                BottomTabItem(0, "الرئيسية", "home", "tab_home"),
-                BottomTabItem(1, "الأخبار", "newspaper", "tab_news"),
-                BottomTabItem(2, "الكليات", "colleges", "tab_colleges"),
-                BottomTabItem(3, "المزيد", "more", "tab_more")
-            )
-        }
+        // ---- shell transforms
+        val covered = pages.isNotEmpty() || detail != null
+        val under by animateFloatAsState(if (covered) 1f else 0f, tween(550, easing = Motion.Spring), label = "under")
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            topBar = {
-                Column {
-                    TopAppBar(
-                        modifier = Modifier.testTag("app_top_bar"),
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.White,
-                            scrolledContainerColor = Color.White
-                        ),
-                        scrollBehavior = null,
-                        title = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Spacer(modifier = Modifier.width(1.dp))
-                            Text(
-                                text = "جامعة كفر الشيخ",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = KfuBlue,
-                                lineHeight = 18.sp
-                            )
-                            if (rightLogo != null) {
-                                AsyncImage(
-                                    model = rightLogo,
-                                    contentDescription = "شعار الكلية",
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .aspectRatio(1f)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .padding(end = 12.dp)
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(id = R.drawable.logo_university),
-                                    contentDescription = "شعار جامعة كفر الشيخ",
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .aspectRatio(1f)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .padding(end = 12.dp)
-                                )
-                            }
-                        }
+        CompositionLocalProvider(LocalToast provides showToast, LocalSheetProgress provides { sheetP = it }) {
+            Box(Modifier.fillMaxSize().background(c.bg)) {
+                // shell: base + pages + detail, scaled back while a sheet is open
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        val s = 1f - .07f * sheetP
+                        scaleX = s; scaleY = s
+                        translationY = -6.dp.toPx() * sheetP
+                        transformOrigin = TransformOrigin(.5f, 1f)
+                        shape = RoundedCornerShape(30.dp.toPx() * sheetP)
+                        clip = sheetP > 0f
                     },
-                        navigationIcon = {},
-                        actions = {}
-                    )
-                    HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFB4DED0).copy(alpha = 0.25f))
-                }
-            },
-            bottomBar = {
-                Column {
-                    HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFB4DED0).copy(alpha = 0.25f))
-                    NavigationBar(
-                        containerColor = Color.White,
-                        tonalElevation = 0.dp,
-                        modifier = Modifier
-                            .height(96.dp)
-                            .navigationBarsPadding()
-                    ) {
-                        bottomTabs.forEach { tab ->
-                            val isSelected = selectedTabIndex == tab.index
-                            NavigationBarItem(
-                                selected = isSelected,
-                                modifier = Modifier.testTag(tab.tag),
-                                onClick = {
-                                    selectedTabIndex = tab.index
-                                },
-                                icon = {
-                                    val tintColor = if (isSelected) KfuBlue else Color(0xFF999999)
-                                    Box(contentAlignment = Alignment.Center) {
-                                        IconBuilder(tab.iconName, isSelected = isSelected, tintColor = tintColor)
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        text = tab.label,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) KfuBlue else Color(0xFF999999)
-                                    )
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    indicatorColor = KfuBlue.copy(alpha = 0.12f)
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .background(KfuBackground)
-            ) {
-                if (!isOnline) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFD32F2F))
-                            .padding(vertical = 6.dp, horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.WifiOff,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "أنت غير متصل بالإنترنت",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                Crossfade(targetState = selectedTabIndex, animationSpec = tween(500), label = "tab") { tabIndex ->
-                    when (tabIndex) {
-                        0 -> HomeScreen(
-                            newsArticles = liveNewsList,
-                            loggedInProfile = loggedInProfile,
-                            isRefreshing = isHomeRefreshing,
-                            onRefresh = onHomeRefresh,
-                            onNavigateToTab = { index -> selectedTabIndex = index },
-                            onSelectNews = { article ->
-                                if (article.isReal && article.topicId > 0) {
-                                    activeWebViewUrl = "https://kfs.edu.eg/news_mob.aspx?topic=${article.topicId}"
-                                    activeWebViewTitle = article.title
-                                } else {
-                                    selectedNewsArticle = article
-                                }
-                            },
-                            onShowLogin = { isStaff -> showLoginType = if (isStaff) "staff" else "student" },
-                            onTriggerService = { id, title ->
-                                val url = when (id) {
-                                    "stu_results" -> "https://mis.kfs.edu.eg/newresult"
-                                    "stu_portal" -> "https://kfs.edu.eg/display.aspx?topic=89154"
-                                    "staff_portal" -> "https://kfs.edu.eg/display.aspx?topic=89155"
-                                    "staff_news" -> "https://kfs.edu.eg"
-                                    "stu_mail" -> "https://kfs.edu.eg/display.aspx?topic=89154"
-                                    "stu_milit" -> "https://kfs.edu.eg/display.aspx?topic=85485"
-                                    "staff_site" -> "https://kfs.edu.eg"
-                                    "more_services" -> "https://kfs.edu.eg/display.aspx?topic=89154"
-                                    // Student services detailed
-                                    "stu_results_full" -> "https://mis.kfs.edu.eg/newresult/"
-                                    "stu_reg_courses" -> "https://mis.kfs.edu.eg/CreditHours_Reg/"
-                                    "stu_coordination" -> "https://portal.kfs.edu.eg/arts"
-                                    "stu_medical" -> "https://mis.kfs.edu.eg/misclinic/"
-                                    "stu_payment" -> "https://payments.kfs.edu.eg/"
-                                    "stu_mail_full" -> "https://kfs.edu.eg/displaytopic.aspx?topic=95559"
-                                    "stu_charter" -> "https://scu.eg//News/News_img/15359661961298821989.pdf"
-                                    "stu_thinqi" -> "https://thinqiacademy.ekb.eg/"
-                                    "stu_military_full" -> "https://kfs.edu.eg/milatrysite/"
-                                    "stu_digital_lib" -> "https://kfs.edu.eg/displaytopic.aspx?topic=95556"
-                                    "stu_housing" -> "https://www.kfs.edu.eg/student_affair/display_dep.aspx?topic=68220&dep=1321"
-                                    "stu_final_form" -> "https://mis.kfs.edu.eg/last_year"
-                                    // Staff services detailed
-                                    "staff_directory" -> "https://mis.kfs.edu.eg/stff/"
-                                    "staff_search" -> "https://www.kfs.edu.eg/SEARCH_STAFF_UNI.ASPX"
-                                    "staff_mail" -> "https://kfs.edu.eg/university/displaytopic.aspx?topic=95533"
-                                    "staff_digital_lib" -> "https://kfs.edu.eg/displaytopic.aspx?topic=95556"
-                                    "staff_courses" -> "https://forms.gle/qox2UhgYGyVYtL2KA"
-                                    "staff_thinqi" -> "https://sso.eetest.online/login"
-                                    "staff_moodle" -> "https://moodle.kfs.edu.eg/"
-                                    "staff_ictt" -> "https://kfs-ictt.metatec.app/"
-                                    "staff_rdi" -> "https://www.kfs.edu.eg/display_dep.aspx?topic=87805&dep=1504"
-                                    "staff_papers" -> "https://mis.kfs.edu.eg/papers/Home/Index"
-                                    "staff_cv" -> "https://www.kfs.edu.eg/control_cv/"
-                                    "staff_journals" -> "https://kfs.edu.eg/display_dep.aspx?topic=76465&dep=1"
-                                    "staff_labs" -> "https://kfs.edu.eg/display_dep.aspx?topic=59665&dep=1504"
-                                    "staff_centers" -> "https://kfs.edu.eg/display_dep.aspx?topic=75534&dep=1504"
-                                    else -> "https://kfs.edu.eg"
-                                }
-                                activeWebViewUrl = url
-                                activeWebViewTitle = title
-                            },
-                            onShowAboutDetail = { id ->
-                                val (url, title) = when (id) {
-                                    "مجلس الجامعة" -> "https://kfs.edu.eg/news_mob.aspx?topic=85455" to "مجلس جامعة كفر الشيخ"
-                                    "لماذا الجامعة" -> "https://kfs.edu.eg/display.aspx?topic=70705" to "لماذا جامعة كفر الشيخ؟"
-                                    "عن الجامعة" -> "https://kfs.edu.eg/display.aspx?topic=74339" to "عن جامعة كفر الشيخ"
-                                    "رؤية ورسالة" -> "https://kfs.edu.eg/display.aspx?topic=1054" to "رؤية ورسالة الجامعة"
-                                    else -> "https://kfs.edu.eg" to id
-                                }
-                                activeWebViewUrl = url
-                                activeWebViewTitle = title
-                            },
-                            onShowStudentProfile = { showStudentProfile = true },
-                            onLogout = {
-                                scope.launch {
-                                    sessionManager.clearSession()
-                                    loggedInProfile = null
-                                }
-                            }
-                        )
-                        1 -> NewsScreen(
-                            newsArticles = liveNewsList,
-                            isRefreshing = isNewsRefreshing,
-                            onSelectNews = { article ->
-                                if (article.isReal && article.topicId > 0) {
-                                    activeWebViewUrl = "https://kfs.edu.eg/news_mob.aspx?topic=${article.topicId}"
-                                    activeWebViewTitle = article.title
-                                } else {
-                                    selectedNewsArticle = article
-                                }
-                            },
-                            onRefresh = onNewsRefresh
-                        )
-                        2 -> CollegesScreen(
-                            isRefreshing = isCollegesRefreshing,
-                            onRefresh = onCollegesRefresh,
-                            onShowWebView = { title, url ->
-                                activeWebViewUrl = url
-                                activeWebViewTitle = title
-                            }
-                        )
-                        3 -> MoreScreen()
-                    }
-                }
-                }
-            }
-        }
-
-        // Drawer Menu Dialog
-        if (showDrawerMenu) {
-            Dialog(onDismissRequest = { showDrawerMenu = false }) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .wrapContentHeight(),
-                    shape = RoundedCornerShape(16.dp),                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { showDrawerMenu = false }) {
-                                Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = KfuBlue)
-                            }
-                            Text("خيارات البوابة السريعة", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = KfuBlue)
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        DrawerMenuItem(Icons.Default.Info, "لوحة أخبار كفر الشيخ") {
-                            showDrawerMenu = false; selectedTabIndex = 1
-                        }
-                        DrawerMenuItem(Icons.Default.AccountBox, "دليل الكليات والشعب") {
-                            showDrawerMenu = false; selectedTabIndex = 2
-                        }
-                        DrawerMenuItem(Icons.Default.Settings, "إعدادات الأمان والدعم") {
-                            showDrawerMenu = false; selectedTabIndex = 3
-                        }
-                    }
-                }
-            }
-        }
-
-        // Notification Center Dialog
-        if (showNotificationCenter) {
-            Dialog(onDismissRequest = { showNotificationCenter = false }) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .height(350.dp),
-                    shape = RoundedCornerShape(16.dp),                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { showNotificationCenter = false }) {
-                                Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = KfuBlue)
-                            }
-                            Text("مركز الإشعارات الهامة", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = KfuBlue)
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Box(modifier = Modifier.weight(1f)) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                horizontalAlignment = Alignment.End
-                            ) {
-                                NotificationItem(
-                                    title = "جداول امتحانات الفصل الدراسي الثاني",
-                                    desc = "تم رفع جداول امتحانات العملي والنظري لمختلف الفرق الدراسية وشعب الكليات عدا الطب البشري.",
-                                    time = "منذ ساعة"
-                                )
-                                NotificationItem(
-                                    title = "فتح الاشتراك في صندوق الدعم الاجتماعي",
-                                    desc = "تعلن رعاية الشباب بالجامعة عن بدء تلقي طلبات الدعم والتسجيل الإلكتروني بمظلة الصندوق التكافلي.",
-                                    time = "منذ يوم"
-                                )
-                                NotificationItem(
-                                    title = "الملتقى التوظيفي السنوي بالجامعة لعام 2026",
-                                    desc = "يقام الملتقى بمشاركة 50 شركة مصرية ودولية في الصالة المغطاة بالقرية الرياضية.",
-                                    time = "منذ يومين"
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // News Detail Dialog
-        selectedNewsArticle?.let { article ->
-            Dialog(onDismissRequest = { selectedNewsArticle = null }) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.95f)
-                        .height(500.dp),
-                    shape = RoundedCornerShape(16.dp),                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
-                        ) {
-                            if (article.imageUrl.isNotBlank()) {
-                                coil.compose.AsyncImage(
-                                    model = article.imageUrl,
-                                    contentDescription = article.title,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(id = article.imageRes),
-                                    contentDescription = article.title,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.45f))
-                            )
-                            IconButton(
-                                onClick = { selectedNewsArticle = null },
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(8.dp)
-                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "قفل", tint = Color.White)
-                            }
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(16.dp)
-                                .verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.End
-                        ) {
-                            Text(
-                                text = article.date,
-                                fontSize = 11.sp, color = KfuBlue, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = article.title,
-                                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = KfuTextPrimary,
-                                textAlign = TextAlign.Right, modifier = Modifier.fillMaxWidth(), lineHeight = 22.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = article.content,
-                                fontSize = 13.sp, color = KfuTextSecondary, textAlign = TextAlign.Right,
-                                modifier = Modifier.fillMaxWidth(), lineHeight = 20.sp
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(KfuBackground)
-                                .padding(10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Button(
-                                onClick = { selectedNewsArticle = null },
-                                colors = ButtonDefaults.buttonColors(containerColor = KfuBlue),
-                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = Color.White)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("مشاركة الخبر الأكاديمي", color = Color.White)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Login Dialog
-        showLoginType?.let { type ->
-            var nationalId by remember { mutableStateOf("") }
-            var isLoginLoading by remember { mutableStateOf(false) }
-            var errorMessage by remember { mutableStateOf("") }
-            val coroutineScope = rememberCoroutineScope()
-
-            Dialog(onDismissRequest = { if (!isLoginLoading) showLoginType = null }) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Box {
-                        Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.End) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = { if (!isLoginLoading) showLoginType = null }
-                                ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "إغلاق",
-                                        tint = Color.Gray
-                                    )
-                                }
-                                Text(
-                                    text = "تسجيل الدخول بالرقم القومي",
-                                    fontWeight = FontWeight.Bold, fontSize = 15.sp, color = KfuBlue,
-                                    textAlign = TextAlign.Right
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = nationalId,
-                                onValueChange = { newVal ->
-                                    if (newVal.length <= 14 && newVal.all { it.isDigit() }) {
-                                        nationalId = newVal
-                                    }
-                                    errorMessage = ""
-                                },
-                                modifier = Modifier.fillMaxWidth().testTag("login2_nid_field"),
-                                readOnly = isLoginLoading,
-                                label = {
-                                    Text(text = "الرقم القومي (14 خانة)", textAlign = TextAlign.Right,
-                                        modifier = Modifier.fillMaxWidth())
-                                },
-                                singleLine = true,
-                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right, color = Color.Black),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = KfuBlue,
-                                    unfocusedBorderColor = Color.LightGray,
-                                    focusedTextColor = Color.Black,
-                                    unfocusedTextColor = Color.Black,
-                                    focusedLabelColor = KfuBlue,
-                                    unfocusedLabelColor = Color.Gray,
-                                    cursorColor = KfuBlue,
-                                    disabledTextColor = Color.Black,
-                                    disabledLabelColor = Color.Gray,
-                                    disabledBorderColor = Color.LightGray,
-                                    disabledPlaceholderColor = Color.Gray
-                                )
-                            )
-
-                            if (errorMessage.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = errorMessage, color = Color.Red, fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Right,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = {
-                                    if (isLoginLoading) return@Button
-                                    if (nationalId.length != 14) {
-                                        errorMessage = "يجب أن يتكون الرقم القومي من 14 رقماً تماماً."
-                                    } else {
-                                        isLoginLoading = true
-                                        errorMessage = ""
-                                        coroutineScope.launch {
-                                            try {
-                                                val profile = com.example.data.KfuNetworkClient.loginWithNationalId(nationalId)
-                                                if (profile != null) {
-                                                    val profileJson = org.json.JSONObject().apply {
-                                                        put("NATIONAL_NUMBER", profile.nationalNumber)
-                                                        put("FULL_NAME_AR", profile.fullName)
-                                                        put("METHOD_DESCR", profile.email)
-                                                        put("METHOD_NOTES", profile.notes)
-                                                        put("STUD_CODE", profile.studentCode)
-                                                        put("PASSWORD_ITEC", profile.passwordItec)
-                                                        put("phase_parent", profile.phaseParent)
-                                                        put("GENDER_DESCR_AR", profile.gender)
-                                                        put("CASE_DESCR_AR", profile.caseDescr)
-                                                        put("RELIGION_DESCR_AR", profile.religion)
-                                                        put("METHOD_DESCR_AR", profile.methodDescr)
-                                                        put("NATURE_DESCR_AR", profile.natureDescr)
-                                                        put("ED_CODE_STUD_ENROLL_AR", profile.enrollStatus)
-                                                        put("Program_Name", profile.programName)
-                                                        put("AS_FACULTY_INFO_ID", profile.asFacultyInfoId)
-                                                        put("STUD_PHOTO", profile.photo)
-                                                    }.toString()
-                                                    sessionManager.saveSession(profileJson, nationalId)
-                                                    loggedInProfile = profile
-                                                    showLoginType = null
-                                                } else {
-                                                    errorMessage = "لم يتم العثور على سجل مطابق. يرجى تجربة رقم آخر."
-                                                }
-                                            } catch (e: Exception) {
-                                                errorMessage = "فشل الاتصال بخادم الجامعة. تأكد من اتصال الإنترنت."
-                                            } finally {
-                                                isLoginLoading = false
-                                            }
+                    // base layer
+                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * .26f * under }) {
+                        for (i in 0..3) {
+                            key(i) {
+                                val on = tab == i
+                                val p by animateFloatAsState(if (on) 1f else 0f, tween(550, easing = Motion.Spring), label = "tab$i")
+                                if (on || p > .001f) {
+                                    Box(
+                                        Modifier.fillMaxSize().graphicsLayer {
+                                            val sign = if (on) -tabDir else tabDir
+                                            translationX = (1f - p) * sign * 30.dp.toPx()
+                                            val s = .985f + .015f * p
+                                            scaleX = s; scaleY = s; alpha = p
+                                        },
+                                    ) {
+                                        val ek = visits[i] + if (splashClosing) 1 else 0
+                                        when (i) {
+                                            0 -> HomeScreen(
+                                                scroll = scrolls[0], enterKey = ek, news = news, colleges = colleges, profile = profile, isDark = isDark,
+                                                refreshing = homeRefreshing, serviceTab = serviceTab, onServiceTab = { serviceTab = it },
+                                                onRefresh = { homeRefreshing = true; scope.launch { loadNews(true); homeRefreshing = false; showToast("تم تحديث الرئيسية", "refresh") } },
+                                                onToggleTheme = { onThemeMode(if (isDark) 1 else 2); showToast(if (isDark) "الوضع الفاتح" else "الوضع الداكن", if (isDark) "sun" else "moon") },
+                                                onBell = { sheet = SheetKind.Notifs }, onLogin = { sheet = SheetKind.Login },
+                                                onProfile = { pushPage(PageKind.Profile) }, onLogout = { sheet = SheetKind.Logout },
+                                                onNewsAll = { selectTab(1) }, onNews = ::openNews, onUrl = ::openUrl,
+                                            )
+                                            1 -> NewsScreen(
+                                                scroll = scrolls[1], enterKey = ek, news = news, query = newsQuery, onQuery = { newsQuery = it },
+                                                refreshing = newsRefreshing,
+                                                onRefresh = { newsRefreshing = true; scope.launch { loadNews(true); newsRefreshing = false; showToast("تم تحديث الأخبار", "refresh") } },
+                                                onNews = ::openNews,
+                                            )
+                                            2 -> CollegesScreen(
+                                                scroll = scrolls[2], enterKey = ek, colleges = colleges, query = collegeQuery, onQuery = { collegeQuery = it },
+                                                onCollege = { pushPage(PageKind.College(it)) },
+                                            )
+                                            else -> MoreScreen(
+                                                scroll = scrolls[3], enterKey = ek, loggedIn = profile != null, studentName = profile?.fullName ?: "",
+                                                themeMode = themeMode, onThemeMode = onThemeMode,
+                                                onMessage = { sheet = SheetKind.Message }, onLogin = { sheet = SheetKind.Login },
+                                                onProfile = { pushPage(PageKind.Profile) }, onLogout = { sheet = SheetKind.Logout }, onUrl = ::openUrl,
+                                            )
                                         }
                                     }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = KfuBlue),
-                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("login2_submit_btn"),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
-                                    if (isLoginLoading) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            modifier = Modifier.size(22.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                    } else {
-                                        Text("تسجيل دخول", color = Color.White)
+                                }
+                            }
+                        }
+                        TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter))
+                        OfflineBanner(!isOnline, statusTop)
+                    }
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .1f * under)))
+
+                    // pushed pages (college, profile)
+                    pages.forEachIndexed { idx, entry ->
+                        key(entry.id) {
+                            PageHost(entry, covered = idx < pages.lastIndex || detail != null, onRemoveNow = { pages.remove(entry) }) {
+                                when (val k = entry.kind) {
+                                    is PageKind.College -> CollegePage(k.college, onBack = ::popTop, onUrl = ::openUrl)
+                                    PageKind.Profile -> {
+                                        val p = profile
+                                        if (p != null) ProfilePage(p, onBack = ::popTop, onLogout = { sheet = SheetKind.Logout }, onUrl = ::openUrl)
+                                        else LaunchedEffect(Unit) { popTop() }
                                     }
                                 }
+                            }
                         }
                     }
-                }
-            }
-        }
-        }
 
-        // Student Profile Screen
-        if (showStudentProfile && loggedInProfile != null) {
-            BackHandler(enabled = showStudentProfile) {
-                showStudentProfile = false
-            }
-            StudentProfileScreen(
-                profile = loggedInProfile!!,
-                onClose = { showStudentProfile = false },
-                onOpenWebView = { url, title ->
-                    cameFromProfile = true
-                    activeWebViewUrl = url
-                    activeWebViewTitle = title
-                },
-                onLogout = {
-                    scope.launch {
-                        sessionManager.clearSession()
-                        loggedInProfile = null
-                        showStudentProfile = false
+                    // news detail with the shared-element reveal
+                    detail?.let { d ->
+                        key(d.article.id) {
+                            NewsDetail(
+                                article = d.article, source = d.source,
+                                others = news.filter { it.id != d.article.id },
+                                onOpenNews = ::openNews, onUrl = ::openUrl, onDismissed = { detail = null },
+                            )
+                        }
+                    }
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .18f * sheetP)))
+                }
+
+                // sheets
+                when (val s = sheet) {
+                    null -> {}
+                    SheetKind.Login -> LoginSheet(
+                        onLoggedIn = { p, nid ->
+                            sessionManager.saveSession(profileToJson(p), nid)
+                            profile = p
+                            showToast("تم تسجيل الدخول", "check")
+                        },
+                        onDismiss = { sheet = null },
+                    )
+                    SheetKind.Notifs -> NotificationsSheet { sheet = null }
+                    SheetKind.Message -> MessageSheet { sheet = null }
+                    SheetKind.Logout -> LogoutSheet(
+                        onConfirm = {
+                            scope.launch {
+                                sessionManager.clearSession()
+                                profile = null
+                                pages.clear()
+                                showToast("تم تسجيل الخروج", "check")
+                            }
+                        },
+                        onDismiss = { sheet = null },
+                    )
+                    is SheetKind.Browser -> key(s.url) { BrowserSheet(s.url, s.title) { sheet = null } }
+                }
+
+                // toast
+                val ty by animateFloatAsState(if (toastShown) 0f else -1f, tween(550, easing = Motion.Bounce), label = "toast")
+                val t = toast
+                if (t != null && ty > -.99f) {
+                    Row(
+                        Modifier.align(Alignment.TopCenter).padding(top = statusTop + 14.dp)
+                            .graphicsLayer { translationY = ty * 140.dp.toPx() }
+                            .height(42.dp).shadow(14.dp, RoundedCornerShape(21.dp)).clip(RoundedCornerShape(21.dp))
+                            .background(c.glass).border(.5.dp, c.sep, RoundedCornerShape(21.dp)).padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        DsIcon(t.icon, c.green, 18.dp, 2.2f)
+                        T(t.message, 14f, FontWeight.SemiBold, c.label, lh = 1.2f, maxLines = 1)
                     }
                 }
-            )
-        }
 
-        // WebView Screen
-        activeWebViewUrl?.let { webUrl ->
-            WebViewScreen(
-                url = webUrl,
-                title = activeWebViewTitle,
-                onClose = {
-                    activeWebViewUrl = null
-                    activeWebViewTitle = ""
-                    if (cameFromProfile) {
-                        cameFromProfile = false
-                        showStudentProfile = true
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun IconBuilder(name: String, isSelected: Boolean, tintColor: Color) {
-    val sizeMod = Modifier.size(24.dp)
-    when (name) {
-        "home" -> Icon(imageVector = Icons.Default.Home, contentDescription = "الرئيسية", tint = tintColor, modifier = sizeMod)
-        "newspaper" -> Icon(imageVector = Icons.AutoMirrored.Filled.List, contentDescription = "الأخبار", tint = tintColor, modifier = sizeMod)
-        "services" -> Icon(imageVector = Icons.Default.Menu, contentDescription = "الخدمات", tint = tintColor, modifier = sizeMod)
-        "colleges" -> Icon(imageVector = Icons.Default.AccountBox, contentDescription = "الكليات", tint = tintColor, modifier = sizeMod)
-        "more" -> Icon(imageVector = Icons.Default.Apps, contentDescription = "المزيد", tint = tintColor, modifier = sizeMod)
-    }
-}
-
-@Composable
-fun DrawerMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = KfuTextPrimary)
-        Spacer(modifier = Modifier.width(10.dp))
-        Icon(imageVector = icon, contentDescription = null, tint = KfuBlue, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-fun NotificationItem(title: String, desc: String, time: String) {
-    Card(        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-
-        colors = CardDefaults.cardColors(containerColor = KfuBackground),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.End) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(time, fontSize = 10.sp, color = KfuBlue, fontWeight = FontWeight.Bold)
-                Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = KfuTextPrimary)
+                if (splashVisible) SplashOverlay(onCollapse = { splashClosing = true }, onFinished = { splashVisible = false })
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(desc, fontSize = 11.sp, color = KfuTextSecondary, textAlign = TextAlign.Right, lineHeight = 14.sp)
+        }
+    }
+}
+
+/** One pushed page: slides in from the leading edge, supports interactive edge-swipe back. */
+@Composable
+private fun PageHost(entry: PageEntry, covered: Boolean, onRemoveNow: () -> Unit, content: @Composable () -> Unit) {
+    val c = Ds.c
+    var dragPx by remember { mutableFloatStateOf(0f) }
+    val under by animateFloatAsState(if (covered) 1f else 0f, tween(550, easing = Motion.Spring), label = "pageUnder")
+    LaunchedEffect(Unit) { entry.shown = true }
+    AnimatedVisibility(
+        visible = entry.shown,
+        enter = slideInHorizontally(tween(580, easing = Motion.Spring)) { -it },
+        exit = slideOutHorizontally(tween(480, easing = Motion.Spring)) { -it },
+    ) {
+        Box(
+            Modifier.fillMaxSize().graphicsLayer { translationX = -dragPx + size.width * .26f * under }
+                .background(c.bg),
+        ) {
+            content()
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .1f * under)))
+            // interactive swipe back from the leading edge
+            val scope = rememberCoroutineScope()
+            Box(
+                Modifier.align(Alignment.TopStart).padding(top = statusBarTopPad() + 64.dp).fillMaxHeight().width(18.dp)
+                    .pointerInput(Unit) {
+                        val w = size.width.toFloat()
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                scope.launch {
+                                    if (dragPx > 120.dp.toPx()) {
+                                        animate(dragPx, w.coerceAtLeast(1f) + 4000f, animationSpec = tween(220)) { v, _ -> dragPx = v }
+                                        onRemoveNow()
+                                    } else {
+                                        animate(dragPx, 0f, animationSpec = tween(400, easing = Motion.Spring)) { v, _ -> dragPx = v }
+                                    }
+                                }
+                            },
+                            onDragCancel = { dragPx = 0f },
+                        ) { _, dx -> dragPx = (dragPx - dx).coerceAtLeast(0f) }
+                    },
+            )
+        }
+    }
+}
+
+@Composable
+private fun statusBarTopPad() = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+/** Floating glass tab bar with a spring-driven selection pill. */
+@Composable
+private fun TabBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val c = Ds.c
+    val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val pos by animateFloatAsState(selected.toFloat(), tween(600, easing = Motion.TabIndicator), label = "tabPos")
+    BoxWithConstraints(
+        modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp + bottom).fillMaxWidth().height(66.dp)
+            .shadow(20.dp, RoundedCornerShape(33.dp)).clip(RoundedCornerShape(33.dp)).background(c.glass)
+            .border(.5.dp, c.sep, RoundedCornerShape(33.dp)).padding(6.dp),
+    ) {
+        val w = maxWidth / 4
+        val wPx = with(androidx.compose.ui.platform.LocalDensity.current) { w.toPx() }
+        Box(Modifier.offset { IntOffset((pos * wPx).roundToInt(), 0) }.width(w).fillMaxHeight().background(c.tintSoft, RoundedCornerShape(27.dp)))
+        Row(Modifier.fillMaxSize()) {
+            TabLabels.forEachIndexed { i, (label, icon) ->
+                val on = i == selected
+                val pop = remember { Animatable(1f) }
+                LaunchedEffect(on) { if (on) { pop.snapTo(.5f); pop.animateTo(1f, tween(550, easing = Motion.Bounce)) } }
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().dsClick(.94f) { onSelect(i) },
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+                ) {
+                    Box(Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) { DsIcon(icon, if (on) c.tint else c.label2, 24.dp) }
+                    T(label, 11f, if (on) FontWeight.SemiBold else FontWeight.Medium, if (on) c.tint else c.label2, lh = 1.2f)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfflineBanner(offline: Boolean, statusTop: androidx.compose.ui.unit.Dp) {
+    val c = Ds.c
+    val y by animateFloatAsState(if (offline) 0f else -1f, tween(500, easing = Motion.Spring), label = "offline")
+    if (y > -.99f) {
+        Row(
+            Modifier.fillMaxWidth().graphicsLayer { translationY = y * size.height }.background(c.red).padding(top = statusTop).height(34.dp + statusTop),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DsIcon("wifioff", Color.White, 16.dp, 2f)
+            T("أنت غير متصل بالإنترنت", 13f, FontWeight.SemiBold, Color.White, lh = 1.2f)
         }
     }
 }
 
 @Composable
 fun rememberConnectivityState(context: Context): State<Boolean> {
-    val connectivityManager = remember {
-        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    }
-
-    fun currentlyOnline(): Boolean {
-        val network = connectivityManager.activeNetwork ?: return false
-        val caps = connectivityManager.getNetworkCapabilities(network) ?: return false
+    val cm = remember { context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
+    fun online(): Boolean {
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
-
-    val isOnline = remember { mutableStateOf(currentlyOnline()) }
-
-    DisposableEffect(connectivityManager) {
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                isOnline.value = currentlyOnline()
-            }
-
-            override fun onLost(network: Network) {
-                isOnline.value = currentlyOnline()
-            }
-
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                isOnline.value = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            }
+    val state = remember { mutableStateOf(online()) }
+    DisposableEffect(cm) {
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { state.value = online() }
+            override fun onLost(network: Network) { state.value = online() }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { state.value = online() }
         }
-        connectivityManager.registerDefaultNetworkCallback(callback)
-        isOnline.value = currentlyOnline()
-        onDispose { connectivityManager.unregisterNetworkCallback(callback) }
+        try { cm.registerDefaultNetworkCallback(cb) } catch (_: Exception) { }
+        onDispose { try { cm.unregisterNetworkCallback(cb) } catch (_: Exception) { } }
     }
-
-    return isOnline
+    return state
 }
