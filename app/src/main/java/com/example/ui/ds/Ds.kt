@@ -263,7 +263,7 @@ fun GlassCircle(icon: String, desc: String, onClick: () -> Unit, badge: String? 
     Box(Modifier.size(38.dp)) {
         Box(
             Modifier.size(38.dp).dsClick(.88f, onClick = onClick)
-                .dsGlass(CircleShape, refract = true, blurDp = 10f),
+                .clip(CircleShape).background(c.surface).border(.5.dp, c.sep, CircleShape),
             contentAlignment = Alignment.Center,
         ) { DsIcon(icon, tint, 20.dp) }
         if (badge != null) {

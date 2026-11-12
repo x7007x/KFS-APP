@@ -289,6 +289,8 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                     },
                 ) {
                     // base layer
+                    val glassPaused by remember { androidx.compose.runtime.derivedStateOf { under > .001f } }
+                    CompositionLocalProvider(com.example.ui.ds.LocalGlassPaused provides glassPaused) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * .26f * under }) {
                         Box(Modifier.fillMaxSize().layerBackdrop(tabsBackdrop)) {
                         for (i in 0..3) {
@@ -328,6 +330,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         }
                         CompositionLocalProvider(LocalBackdrop provides tabsBackdrop) { TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter)) }
                         OfflineBanner(!isOnline, statusTop)
+                    }
                     }
                     Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .1f * under)) })
 

@@ -101,7 +101,7 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(38.dp)) {
                 Row(
                     Modifier.align(Alignment.CenterStart).height(38.dp).dsClick(.92f, onClick = onBack)
-                        .dsGlass(RoundedCornerShape(19.dp), refract = true, blurDp = 10f).padding(start = 12.dp, end = 10.dp),
+                        .clip(RoundedCornerShape(19.dp)).background(c.surface).border(.5.dp, c.sep, RoundedCornerShape(19.dp)).padding(start = 12.dp, end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     DsIcon("chevR", c.tint, 20.dp, 2.4f)
