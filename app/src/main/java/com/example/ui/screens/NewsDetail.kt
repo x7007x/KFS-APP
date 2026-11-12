@@ -24,6 +24,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.ui.ds.LocalBackdrop
+import com.example.ui.ds.dsGlass
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -107,15 +112,20 @@ fun NewsDetail(
 
     Box(Modifier.fillMaxSize().graphicsLayer { clip = true; shape = RevealShape(source, prog.value, radius) }.background(c.bg)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            val backdrop = rememberLayerBackdrop()
             Box(Modifier.fillMaxWidth().height(340.dp)) {
-                DsPic(article.imageUrl, article.topicId, Modifier.fillMaxSize().graphicsLayer {
-                    val s = 1.25f - .25f * prog.value
-                    scaleX = s; scaleY = s
-                })
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x59000000), .28f to Color.Transparent, .62f to Color.Transparent, 1f to c.bg)))
-                Row(Modifier.fillMaxWidth().padding(top = top + 12.dp, start = 12.dp, end = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    DetailRound("close", "إغلاق", ::close)
-                    DetailRound("share", "نسخ الرابط") { clipboard.setText(AnnotatedString(url)); toast("تم النسخ", "copy") }
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+                    DsPic(article.imageUrl, article.topicId, Modifier.fillMaxSize().graphicsLayer {
+                        val s = 1.25f - .25f * prog.value
+                        scaleX = s; scaleY = s
+                    })
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x59000000), .28f to Color.Transparent, .62f to Color.Transparent, 1f to c.bg)))
+                }
+                CompositionLocalProvider(LocalBackdrop provides backdrop) {
+                    Row(Modifier.fillMaxWidth().padding(top = top + 12.dp, start = 12.dp, end = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        DetailRound("close", "إغلاق", ::close)
+                        DetailRound("share", "نسخ الرابط") { clipboard.setText(AnnotatedString(url)); toast("تم النسخ", "copy") }
+                    }
                 }
             }
             Column(Modifier.offset(y = (-52).dp).padding(start = 20.dp, end = 20.dp, bottom = bottom + 40.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -123,7 +133,7 @@ fun NewsDetail(
                     Pill("cal", fmtDate(article.date), c.green, c.greenSoft)
                     Pill("news", "أخبار الجامعة", c.tint, c.tintSoft)
                 }
-                T(article.title, 24f, FontWeight.Bold, c.label, lh = 1.55f, modifier = Modifier.rise(1, article.id))
+                T(article.title, 21f, FontWeight.Bold, c.label, lh = 1.55f, modifier = Modifier.rise(1, article.id))
                 T("يمكنك قراءة نص الخبر كاملاً مع الصور المرفقة على موقع الجامعة الرسمي.", 15f, color = c.label2, lh = 1.85f, modifier = Modifier.rise(2, article.id))
                 Column(Modifier.rise(3, article.id), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     DsButton("قراءة الخبر كاملاً", { onUrl(url, article.title) }, Modifier.fillMaxWidth(), icon = "ext", big = true)
@@ -149,7 +159,7 @@ fun NewsDetail(
 private fun DetailRound(icon: String, desc: String, onClick: () -> Unit) {
     val c = Ds.c
     Box(
-        Modifier.size(38.dp).clip(CircleShape).background(c.glass).border(.5.dp, c.sep, CircleShape).dsClick(.88f, onClick = onClick),
+        Modifier.size(38.dp).dsClick(.88f, onClick = onClick).dsGlass(CircleShape, refract = true, blurDp = 10f),
         contentAlignment = Alignment.Center,
     ) { DsIcon(icon, c.label, 20.dp, if (icon == "close") 2.2f else 1.8f) }
 }

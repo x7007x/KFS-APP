@@ -58,7 +58,6 @@ import com.example.ui.ds.DsPic
 import com.example.ui.ds.DsSeg
 import com.example.ui.ds.GlassCircle
 import com.example.ui.ds.Motion
-import com.example.ui.ds.Notifs
 import com.example.ui.ds.QuickLinks
 import com.example.ui.ds.Svc
 import com.example.ui.ds.SvcStaff
@@ -79,8 +78,7 @@ private const val HERO_URL = "https://www.arabcont.com/Images/ProjectImage/Confe
 @Composable
 fun AccountAvatar(profile: RealStudentProfile, size: androidx.compose.ui.unit.Dp, radius: androidx.compose.ui.unit.Dp, textSize: Float) {
     val c = Ds.c
-    val faculty = remember(profile) { HarDataCache.findFacultyByInfoId(profile.asFacultyInfoId.toInt()) }
-    val photo = if (profile.photo.isNotBlank() && faculty != null) "https://kfs.edu.eg/${faculty.facUrl}/photo/${profile.photo}" else null
+    val photo = if (profile.nationalNumber.isNotBlank()) "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/${profile.nationalNumber}.png" else null
     Box(
         Modifier.size(size).clip(RoundedCornerShape(radius))
             .background(Brush.linearGradient(listOf(Color(0xFF2F86D9), Color(0xFF1A5CAA)))),
@@ -105,6 +103,7 @@ fun HomeScreen(
     colleges: List<CollegeUi>,
     profile: RealStudentProfile?,
     isDark: Boolean,
+    unread: Int,
     refreshing: Boolean,
     serviceTab: Int,
     onServiceTab: (Int) -> Unit,
@@ -125,7 +124,7 @@ fun HomeScreen(
         refreshing = refreshing, onRefresh = onRefresh,
         trailing = {
             GlassCircle(if (isDark) "sun" else "moon", "تبديل المظهر", onToggleTheme)
-            GlassCircle("bell", "الإشعارات", onBell, badge = nf(Notifs.size))
+            GlassCircle("bell", "الإشعارات", onBell, badge = if (unread > 0) nf(minOf(unread, 9)) else null)
             if (profile != null) {
                 Box(Modifier.dsClick(.88f, onClick = onProfile)) { AccountAvatar(profile, 38.dp, 19.dp, 15f) }
             } else {
@@ -136,7 +135,7 @@ fun HomeScreen(
         // large title
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) {
             T(if (profile != null) "مرحباً ${profile.fullName.split(" ").first()}" else greeting(), 13f, FontWeight.SemiBold, c.green)
-            T("جامعة كفر الشيخ", 33f, FontWeight.Bold, c.label, lh = 1.25f)
+            T("جامعة كفر الشيخ", 27f, FontWeight.Bold, c.label, lh = 1.25f)
         }
 
         // hero with parallax

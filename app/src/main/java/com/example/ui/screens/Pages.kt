@@ -74,6 +74,10 @@ import com.example.ui.ds.SvcStudents
 import com.example.ui.ds.T
 import com.example.ui.ds.TileGradients
 import com.example.ui.ds.dsClick
+import com.example.ui.ds.dsGlass
+import androidx.compose.foundation.layout.imePadding
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.example.ui.ds.navProgress
 import com.example.ui.ds.rise
 import com.example.ui.ds.topicUrl
@@ -89,14 +93,16 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
     val d = LocalDensity.current.density
     val p = (((scroll.value / d) - 30f) / 36f).coerceIn(0f, 1f)
     Box(Modifier.fillMaxSize().background(c.bg)) {
-        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = top + 64.dp, bottom = bottom + 40.dp), content = content)
+        val backdrop = rememberLayerBackdrop()
+        Column(Modifier.fillMaxSize().layerBackdrop(backdrop).imePadding().verticalScroll(scroll).padding(top = top + 58.dp, bottom = bottom + 40.dp), content = content)
+        androidx.compose.runtime.CompositionLocalProvider(com.example.ui.ds.LocalBackdrop provides backdrop) {
         Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-            Box(Modifier.matchParentSize().graphicsLayer { alpha = p }.background(c.glass))
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = p }.dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 20f))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp).graphicsLayer { alpha = p }.background(c.sep))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(38.dp)) {
                 Row(
-                    Modifier.align(Alignment.CenterStart).height(38.dp).clip(RoundedCornerShape(19.dp)).background(c.glass)
-                        .border(.5.dp, c.sep, RoundedCornerShape(19.dp)).dsClick(.92f, onClick = onBack).padding(start = 12.dp, end = 10.dp),
+                    Modifier.align(Alignment.CenterStart).height(38.dp).dsClick(.92f, onClick = onBack)
+                        .dsGlass(RoundedCornerShape(19.dp), refract = true, blurDp = 10f).padding(start = 12.dp, end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     DsIcon("chevR", c.tint, 20.dp, 2.4f)
@@ -104,6 +110,7 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
                 }
                 T(title, 16f, FontWeight.SemiBold, c.label, maxLines = 1, modifier = Modifier.align(Alignment.Center).graphicsLayer { alpha = p; translationY = (1f - p) * 7.dp.toPx() })
             }
+        }
         }
     }
 }
@@ -165,7 +172,7 @@ fun CollegePage(college: CollegeUi, onBack: () -> Unit, onUrl: (String, String) 
             Box(Modifier.shadow(14.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = fg, spotColor = fg)) {
                 DsMono(college.title, "https://kfs.edu.eg/kfsapi/flogo/${college.logo}", fg, bg, 92.dp, 36f)
             }
-            T(college.title, 23f, FontWeight.Bold, c.label, lh = 1.4f, align = TextAlign.Center)
+            T(college.title, 20f, FontWeight.Bold, c.label, lh = 1.4f, align = TextAlign.Center)
             Box(Modifier.height(26.dp).clip(RoundedCornerShape(13.dp)).background(bg).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                 T(groupTitle, 12.5f, FontWeight.SemiBold, fg, lh = 1.2f)
             }
@@ -260,7 +267,7 @@ fun ProfilePage(profile: RealStudentProfile, onBack: () -> Unit, onLogout: () ->
 
     BackHandler(onBack = onBack)
     PageScaffold("الملف الشخصي", onBack) {
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)) { T("الملف الشخصي", 33f, FontWeight.Bold, c.label, lh = 1.25f) }
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)) { T("الملف الشخصي", 27f, FontWeight.Bold, c.label, lh = 1.25f) }
         Row(
             Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth().rise(0).clip(RoundedCornerShape(22.dp)).background(c.surface)
                 .border(.5.dp, c.sep, RoundedCornerShape(22.dp)).padding(14.dp),
@@ -277,7 +284,7 @@ fun ProfilePage(profile: RealStudentProfile, onBack: () -> Unit, onLogout: () ->
             GroupHeader("البيانات الشخصية")
             DsList(Modifier.padding(horizontal = 16.dp)) {
                 CopyRow("user", Color(0xFF1A5CAA), "الاسم بالكامل", profile.fullName); DsDivider()
-                InfoRow("الرقم القومي", profile.nationalNumber); DsDivider()
+                CopyRow("badge", Color(0xFF1A5CAA), "الرقم القومي", profile.nationalNumber); DsDivider()
                 CopyRow("badge", Color(0xFF008744), "كود الطالب", profile.studentCode); DsDivider()
                 InfoRow("الكلية", collegeName); DsDivider()
                 InfoRow("الشعبة", profile.programName); DsDivider()

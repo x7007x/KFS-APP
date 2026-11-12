@@ -38,6 +38,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.draw.drawBehind
+import com.example.ui.ds.LocalBackdrop
+import com.example.ui.ds.dsGlass
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -179,6 +186,18 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
         var toastShown by remember { mutableStateOf(false) }
         var toastSeq by remember { mutableIntStateOf(0) }
 
+        // Notifications are the university's real news; an item is unread until the bell sheet has been opened after it appeared.
+        val uiPrefs = remember { context.getSharedPreferences("kfu_ui", Context.MODE_PRIVATE) }
+        var seenMax by remember { mutableIntStateOf(uiPrefs.getInt("notif_seen_max", -1)) }
+        val newestId = remember(news) { news.maxOfOrNull { it.topicId } ?: 0 }
+        LaunchedEffect(newestId) {
+            if (seenMax < 0 && newestId > 0) { seenMax = newestId; uiPrefs.edit().putInt("notif_seen_max", newestId).apply() }
+        }
+        val unreadIds = remember(news, seenMax) { if (seenMax < 0) emptySet() else news.filter { it.topicId > seenMax }.map { it.id }.toSet() }
+        fun markNotifsSeen() { if (newestId > seenMax) { seenMax = newestId; uiPrefs.edit().putInt("notif_seen_max", newestId).apply() } }
+        val tabsBackdrop = rememberLayerBackdrop()
+        val shellBackdrop = rememberLayerBackdrop()
+
         val showToast: (String, String) -> Unit = remember { { m, i -> toast = ToastData(m, i); toastShown = true; toastSeq++ } }
         LaunchedEffect(toastSeq) { if (toastShown) { delay(2200); toastShown = false } }
 
@@ -249,6 +268,8 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
         }
         fun openNews(a: NewsArticle, r: Rect) { detail = NewsDetailState(a, r) }
 
+        BackHandler(enabled = pages.isNotEmpty() && detail == null && sheet == null) { popTop() }
+
         // ---- shell transforms
         val covered = pages.isNotEmpty() || detail != null
         val under by animateFloatAsState(if (covered) 1f else 0f, tween(550, easing = Motion.Spring), label = "under")
@@ -259,7 +280,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
             Box(Modifier.fillMaxSize().background(c.bg)) {
                 // shell: base + pages + detail, scaled back while a sheet is open
                 Box(
-                    Modifier.fillMaxSize().graphicsLayer {
+                    Modifier.fillMaxSize().layerBackdrop(shellBackdrop).graphicsLayer {
                         val s = 1f - .07f * sheetP
                         scaleX = s; scaleY = s
                         translationY = -6.dp.toPx() * sheetP
@@ -270,23 +291,14 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                 ) {
                     // base layer
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * .26f * under }) {
+                        Box(Modifier.fillMaxSize().layerBackdrop(tabsBackdrop)) {
                         for (i in 0..3) {
                             key(i) {
-                                val on = tab == i
-                                val p by animateFloatAsState(if (on) 1f else 0f, tween(550, easing = Motion.Spring), label = "tab$i")
-                                if (on || p > .001f) {
-                                    Box(
-                                        Modifier.fillMaxSize().graphicsLayer {
-                                            val sign = if (on) -tabDir else tabDir
-                                            translationX = (1f - p) * sign * 30.dp.toPx()
-                                            val s = .985f + .015f * p
-                                            scaleX = s; scaleY = s; alpha = p
-                                        },
-                                    ) {
+                                TabLayer(on = tab == i, dir = tabDir) {
                                         val ek = visits[i] + if (splashClosing) 1 else 0
                                         when (i) {
                                             0 -> HomeScreen(
-                                                scroll = scrolls[0], enterKey = ek, news = news, colleges = colleges, profile = profile, isDark = isDark,
+                                                scroll = scrolls[0], enterKey = ek, news = news, colleges = colleges, profile = profile, isDark = isDark, unread = unreadIds.size,
                                                 refreshing = homeRefreshing, serviceTab = serviceTab, onServiceTab = { serviceTab = it },
                                                 onRefresh = { homeRefreshing = true; scope.launch { loadNews(true); homeRefreshing = false; showToast("تم تحديث الرئيسية", "refresh") } },
                                                 onToggleTheme = { onThemeMode(if (isDark) 1 else 2); showToast(if (isDark) "الوضع الفاتح" else "الوضع الداكن", if (isDark) "sun" else "moon") },
@@ -311,14 +323,14 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                                                 onProfile = { pushPage(PageKind.Profile) }, onLogout = { sheet = SheetKind.Logout }, onUrl = ::openUrl,
                                             )
                                         }
-                                    }
                                 }
                             }
                         }
-                        TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter))
+                        }
+                        CompositionLocalProvider(LocalBackdrop provides tabsBackdrop) { TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter)) }
                         OfflineBanner(!isOnline, statusTop)
                     }
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .1f * under)))
+                    Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .1f * under)) })
 
                     // pushed pages (college, profile)
                     pages.forEachIndexed { idx, entry ->
@@ -346,10 +358,11 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                             )
                         }
                     }
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .18f * sheetP)))
+                    Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .18f * sheetP)) })
                 }
 
                 // sheets
+                CompositionLocalProvider(LocalBackdrop provides shellBackdrop) {
                 when (val s = sheet) {
                     null -> {}
                     SheetKind.Login -> LoginSheet(
@@ -360,7 +373,11 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         },
                         onDismiss = { sheet = null },
                     )
-                    SheetKind.Notifs -> NotificationsSheet { sheet = null }
+                    SheetKind.Notifs -> NotificationsSheet(
+                        items = news, unreadIds = unreadIds,
+                        onOpen = { a, r -> openNews(a, r) },
+                        onDismiss = { markNotifsSeen(); sheet = null },
+                    )
                     SheetKind.Message -> MessageSheet { sheet = null }
                     SheetKind.Logout -> LogoutSheet(
                         onConfirm = {
@@ -375,26 +392,50 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                     )
                     is SheetKind.Browser -> key(s.url) { BrowserSheet(s.url, s.title) { sheet = null } }
                 }
+                }
 
                 // toast
-                val ty by animateFloatAsState(if (toastShown) 0f else -1f, tween(550, easing = Motion.Bounce), label = "toast")
+                val tyState = animateFloatAsState(if (toastShown) 0f else -1f, tween(550, easing = Motion.Bounce), label = "toast")
                 val t = toast
-                if (t != null && ty > -.99f) {
+                if (t != null && (toastShown || tyState.value > -.99f)) {
+                  CompositionLocalProvider(LocalBackdrop provides shellBackdrop) {
                     Row(
                         Modifier.align(Alignment.TopCenter).padding(top = statusTop + 14.dp)
-                            .graphicsLayer { translationY = ty * 140.dp.toPx() }
-                            .height(42.dp).shadow(14.dp, RoundedCornerShape(21.dp)).clip(RoundedCornerShape(21.dp))
-                            .background(c.glass).border(.5.dp, c.sep, RoundedCornerShape(21.dp)).padding(horizontal = 16.dp),
+                            .graphicsLayer { translationY = tyState.value * 140.dp.toPx() }
+                            .height(42.dp).shadow(14.dp, RoundedCornerShape(21.dp))
+                            .dsGlass(RoundedCornerShape(21.dp), refract = true, blurDp = 14f).padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         DsIcon(t.icon, c.green, 18.dp, 2.2f)
                         T(t.message, 14f, FontWeight.SemiBold, c.label, lh = 1.2f, maxLines = 1)
                     }
+                  }
                 }
 
                 if (splashVisible) SplashOverlay(onCollapse = { splashClosing = true }, onFinished = { splashVisible = false })
             }
         }
+    }
+}
+
+/** One tab of the base layer: cross-fades and slides in the direction of travel, leaving composition once hidden. */
+@Composable
+private fun TabLayer(on: Boolean, dir: Int, content: @Composable () -> Unit) {
+    val p = remember { Animatable(if (on) 1f else 0f) }
+    var shown by remember { mutableStateOf(on) }
+    LaunchedEffect(on) {
+        if (on) { shown = true; p.animateTo(1f, tween(550, easing = Motion.Spring)) }
+        else { p.animateTo(0f, tween(550, easing = Motion.Spring)); shown = false }
+    }
+    if (shown) {
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                val sign = if (on) -dir else dir
+                translationX = (1f - p.value) * sign * 30.dp.toPx()
+                val sc = .985f + .015f * p.value
+                scaleX = sc; scaleY = sc; alpha = p.value
+            },
+        ) { content() }
     }
 }
 
@@ -415,7 +456,7 @@ private fun PageHost(entry: PageEntry, covered: Boolean, onRemoveNow: () -> Unit
                 .background(c.bg),
         ) {
             content()
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .1f * under)))
+            Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .1f * under)) })
             // interactive swipe back from the leading edge
             val scope = rememberCoroutineScope()
             Box(
@@ -450,10 +491,14 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
     val c = Ds.c
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val pos by animateFloatAsState(selected.toFloat(), tween(600, easing = Motion.TabIndicator), label = "tabPos")
+    // The keyboard owns the bottom of the screen, so the bar steps aside while it is open.
+    val imeOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val hide by animateFloatAsState(if (imeOpen) 1f else 0f, tween(250), label = "tabHide")
+    if (hide >= .99f) return
     BoxWithConstraints(
-        modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp + bottom).fillMaxWidth().height(66.dp)
-            .shadow(20.dp, RoundedCornerShape(33.dp)).clip(RoundedCornerShape(33.dp)).background(c.glass)
-            .border(.5.dp, c.sep, RoundedCornerShape(33.dp)).padding(6.dp),
+        modifier.graphicsLayer { alpha = 1f - hide; translationY = hide * 40.dp.toPx() }
+            .padding(start = 14.dp, end = 14.dp, bottom = 14.dp + bottom).fillMaxWidth().height(66.dp)
+            .shadow(20.dp, RoundedCornerShape(33.dp)).dsGlass(RoundedCornerShape(33.dp), refract = true, blurDp = 20f).padding(6.dp),
     ) {
         val w = maxWidth / 4
         val wPx = with(androidx.compose.ui.platform.LocalDensity.current) { w.toPx() }

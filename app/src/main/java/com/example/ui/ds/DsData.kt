@@ -4,7 +4,6 @@ package com.example.ui.ds
 
 data class Svc(val label: String, val icon: String, val url: String, val title: String)
 data class QuickLink(val label: String, val icon: String, val url: String, val title: String)
-data class Notif(val title: String, val body: String, val time: String, val icon: String, val color: Long)
 
 val SvcStudents = listOf(
     Svc("نتائج الطلاب", "clip", "https://mis.kfs.edu.eg/newresult/", "نتائج الطلاب"),
@@ -45,11 +44,6 @@ val QuickLinks = listOf(
     QuickLink("رؤية ورسالة\nالجامعة", "eye", "https://kfs.edu.eg/display.aspx?topic=1054", "رؤية ورسالة الجامعة")
 )
 
-val Notifs = listOf(
-    Notif("جداول امتحانات الفصل الدراسي الثاني", "تم رفع جداول امتحانات العملي والنظري لمختلف الفرق الدراسية وشعب الكليات عدا الطب البشري.", "منذ ساعة", "clock", 0xFF1A5CAA),
-    Notif("فتح الاشتراك في صندوق الدعم الاجتماعي", "تعلن رعاية الشباب بالجامعة عن بدء تلقي طلبات الدعم والتسجيل الإلكتروني بمظلة الصندوق التكافلي.", "منذ يوم", "group", 0xFF008744),
-    Notif("الملتقى التوظيفي السنوي بالجامعة لعام 2026", "يقام الملتقى بمشاركة 50 شركة مصرية ودولية في الصالة المغطاة بالقرية الرياضية.", "منذ يومين", "badge", 0xFFB07A00)
-)
 
 val CardGradients: List<Pair<Long, Long>> = listOf(
     0xFF2F86D9 to 0xFF0D3D75,

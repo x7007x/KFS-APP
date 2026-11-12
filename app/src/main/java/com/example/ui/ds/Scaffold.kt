@@ -31,6 +31,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.graphics.RectangleShape
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -60,7 +65,7 @@ fun DsNavBar(
     val c = Ds.c
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-        Box(Modifier.matchParentSize().graphicsLayer { alpha = progress }.background(c.glass))
+        Box(Modifier.matchParentSize().graphicsLayer { alpha = progress }.dsGlass(RectangleShape, border = false, blurDp = 20f))
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp)
                 .graphicsLayer { alpha = progress }.background(c.sep),
@@ -120,10 +125,14 @@ fun TabScaffold(
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val p = navProgress(scroll)
+    val backdrop = rememberLayerBackdrop()
     Box(Modifier.fillMaxSize()) {
+        // Pages with a logo and actions keep the bar visible, so their content starts below it.
+        val topPad = if (showLogo) top + 62.dp else top + 6.dp
         val body: @Composable () -> Unit = {
             Column(
-                Modifier.fillMaxSize().verticalScroll(scroll).padding(top = top + 62.dp, bottom = bottom + 118.dp),
+                Modifier.fillMaxSize().layerBackdrop(backdrop).imePadding().verticalScroll(scroll)
+                    .padding(top = topPad, bottom = bottom + 118.dp),
                 content = content,
             )
         }
@@ -134,6 +143,6 @@ fun TabScaffold(
                 indicator = { PullIndicator(state.distanceFraction, refreshing) },
             ) { body() }
         } else body()
-        DsNavBar(title, p, showLogo, trailing)
+        CompositionLocalProvider(LocalBackdrop provides backdrop) { DsNavBar(title, p, showLogo, trailing) }
     }
 }

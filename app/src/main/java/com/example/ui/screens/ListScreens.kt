@@ -67,7 +67,7 @@ fun NewsScreen(
 ) {
     val c = Ds.c
     TabScaffold(scroll, "الأخبار", refreshing = refreshing, onRefresh = onRefresh) {
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) { T("الأخبار", 33f, FontWeight.Bold, c.label, lh = 1.25f) }
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) { T("الأخبار", 27f, FontWeight.Bold, c.label, lh = 1.25f) }
         Box(Modifier.rise(1, enterKey)) { DsSearch(query, onQuery, "ابحث في الأخبار") }
         Column(Modifier.rise(2, enterKey)) {
             val q = normalizeAr(query.trim())
@@ -139,7 +139,7 @@ fun CollegesScreen(
 ) {
     val c = Ds.c
     TabScaffold(scroll, "الكليات") {
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) { T("الكليات", 33f, FontWeight.Bold, c.label, lh = 1.25f) }
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) { T("الكليات", 27f, FontWeight.Bold, c.label, lh = 1.25f) }
         Box(Modifier.rise(1, enterKey)) { DsSearch(query, onQuery, "ابحث عن كلية أو معهد") }
         Column(Modifier.rise(2, enterKey)) {
             val q = normalizeAr(query.trim())
@@ -192,7 +192,7 @@ fun MoreScreen(
 ) {
     val c = Ds.c
     TabScaffold(scroll, "المزيد") {
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) { T("المزيد", 33f, FontWeight.Bold, c.label, lh = 1.25f) }
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp).rise(0, enterKey)) { T("المزيد", 27f, FontWeight.Bold, c.label, lh = 1.25f) }
         Box(Modifier.padding(horizontal = 16.dp).rise(1, enterKey)) { DsButton("إرسال رسالة للجامعة", onMessage, Modifier.fillMaxWidth(), icon = "mail", big = true) }
         Column(Modifier.rise(2, enterKey)) {
             GroupHeader("حسابي")

@@ -3,6 +3,7 @@ package com.example.ui.ds
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -127,11 +128,19 @@ fun DsIcon(name: String, tint: Color, size: Dp = 22.dp, stroke: Float = 1.8f, mo
 
 // ---------------------------------------------------------------- motion modifiers
 
-/** Press feedback: scales down with the artifact's bounce curve. */
+/**
+ * Press feedback: the element swells while held, then settles back with a springy overshoot.
+ * [scaleTo] keeps its old meaning as the press strength (0.88 is stronger than 0.98); the target is mirrored above 1.
+ */
 fun Modifier.dsClick(scaleTo: Float = .95f, enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val sc by animateFloatAsState(if (pressed) scaleTo else 1f, tween(300, easing = Motion.Bounce), label = "press")
+    val grow = (1f + (1f - scaleTo) * 1.1f).coerceIn(1.015f, 1.14f)
+    val sc by animateFloatAsState(
+        if (pressed) grow else 1f,
+        if (pressed) spring(dampingRatio = .72f, stiffness = 260f) else spring(dampingRatio = .38f, stiffness = 320f),
+        label = "press",
+    )
     this
         .graphicsLayer { scaleX = sc; scaleY = sc }
         .clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
@@ -254,8 +263,8 @@ fun GlassCircle(icon: String, desc: String, onClick: () -> Unit, badge: String? 
     val c = Ds.c
     Box(Modifier.size(38.dp)) {
         Box(
-            Modifier.size(38.dp).clip(CircleShape).background(c.glass).border(.5.dp, c.sep, CircleShape)
-                .dsClick(.88f, onClick = onClick),
+            Modifier.size(38.dp).dsClick(.88f, onClick = onClick)
+                .dsGlass(CircleShape, refract = true, blurDp = 10f),
             contentAlignment = Alignment.Center,
         ) { DsIcon(icon, tint, 20.dp) }
         if (badge != null) {

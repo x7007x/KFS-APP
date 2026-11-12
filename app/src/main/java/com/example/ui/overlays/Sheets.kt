@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -55,6 +54,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.shape.CircleShape
+import com.example.data.NewsArticle
+import com.example.ui.ds.dsGlass
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,7 +97,6 @@ import com.example.ui.ds.DsIcon
 import com.example.ui.ds.DsList
 import com.example.ui.ds.LocalToast
 import com.example.ui.ds.Motion
-import com.example.ui.ds.Notifs
 import com.example.ui.ds.T
 import com.example.ui.ds.dsClick
 import com.example.ui.theme.Ds
@@ -122,9 +126,10 @@ fun DsSheet(
     var closing by remember { mutableStateOf(false) }
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val imeDp = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
 
     val report = LocalSheetProgress.current
-    androidx.compose.runtime.SideEffect { report(1f - hidden.value) }
+    LaunchedEffect(Unit) { snapshotFlow { 1f - hidden.value }.collect { report(it) } }
     DisposableEffect(Unit) { onDispose { report(0f) } }
     LaunchedEffect(Unit) { hidden.animateTo(0f, tween(600, easing = Motion.Spring)) }
     fun close() {
@@ -141,13 +146,16 @@ fun DsSheet(
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = ::close),
         )
         val shape = if (action) RoundedCornerShape(30.dp) else RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+        // The sheet rides above the keyboard and shrinks so its fields are never covered.
+        val room = (maxH - imeDp - top - 8.dp).coerceAtLeast(160.dp)
+        val sheetMax = minOf(maxH * .94f, room)
         Column(
-            Modifier.align(Alignment.BottomCenter)
+            Modifier.align(Alignment.BottomCenter).imePadding()
                 .then(if (action) Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp + bottom) else Modifier)
                 .fillMaxWidth()
-                .then(if (tall) Modifier.height(maxH * .92f) else Modifier.heightIn(max = maxH * .94f))
+                .then(if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
                 .graphicsLayer { translationY = hidden.value * size.height + drag }
-                .shadow(20.dp, shape).clip(shape).background(if (action) c.glass else c.bg),
+                .shadow(20.dp, shape).clip(shape).then(if (action) Modifier.dsGlass(shape, refract = true, blurDp = 22f) else Modifier.background(c.bg)),
         ) {
             Box(
                 Modifier.fillMaxWidth().height(26.dp).pointerInput(Unit) {
@@ -158,7 +166,7 @@ fun DsSheet(
                 },
                 contentAlignment = Alignment.Center,
             ) { Box(Modifier.width(38.dp).height(5.dp).background(c.fill2, RoundedCornerShape(3.dp))) }
-            Box(Modifier.then(if (tall) Modifier.weight(1f) else Modifier).padding(bottom = if (action) 0.dp else bottom)) { content(::close) }
+            Box(Modifier.then(if (tall) Modifier.weight(1f) else Modifier.weight(1f, fill = false)).padding(bottom = if (action) 0.dp else if (imeDp > 0.dp) 0.dp else bottom)) { content(::close) }
         }
     }
 }
@@ -183,21 +191,23 @@ fun XButton(icon: String, onClick: () -> Unit) {
 // ------------------------------------------------------------------ notifications
 
 @Composable
-fun NotificationsSheet(onDismiss: () -> Unit) = DsSheet(onDismiss) { close ->
+fun NotificationsSheet(items: List<NewsArticle>, unreadIds: Set<String>, onOpen: (NewsArticle, androidx.compose.ui.geometry.Rect) -> Unit, onDismiss: () -> Unit) = DsSheet(onDismiss) { close ->
     val c = Ds.c
     Column {
         SheetHeader("الإشعارات", close)
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-            DsList {
-                Notifs.forEachIndexed { i, n ->
-                    if (i > 0) DsDivider()
-                    Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                        Box(Modifier.size(38.dp).background(Color(n.color), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { DsIcon(n.icon, Color.White, 20.dp, 2f) }
-                        Column(Modifier.weight(1f)) {
-                            T(n.title, 14.5f, FontWeight.SemiBold, c.label, lh = 1.5f)
-                            T(n.body, 13f, color = c.label2, lh = 1.6f)
+        if (items.isEmpty()) {
+            com.example.ui.ds.EmptyState("bell", "لا توجد إشعارات", "ستظهر هنا أخبار الجامعة فور نشرها.")
+        } else {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                DsList {
+                    items.take(12).forEachIndexed { i, n ->
+                        if (i > 0) DsDivider()
+                        Box {
+                            com.example.ui.screens.NewsRow(n, onClick = { r -> close(); onOpen(n, r) })
+                            if (n.id in unreadIds) {
+                                Box(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 8.dp).size(10.dp).background(c.tint, CircleShape))
+                            }
                         }
-                        T(n.time, 12f, color = c.label3, lh = 1.4f)
                     }
                 }
             }
@@ -272,7 +282,7 @@ fun LoginSheet(onLoggedIn: suspend (RealStudentProfile, String) -> Unit, onDismi
                 .clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF2F86D9), c.tintD))),
             contentAlignment = Alignment.Center,
         ) { DsIcon("cap", Color.White, 38.dp, 1.6f) }
-        T("تسجيل الدخول بالرقم القومي", 22f, FontWeight.Bold, c.label, align = TextAlign.Center)
+        T("تسجيل الدخول بالرقم القومي", 20f, FontWeight.Bold, c.label, align = TextAlign.Center)
         T("أدخل الرقم القومي المكوّن من 14 رقماً للوصول إلى ملفك وخدماتك.", 14f, color = c.label2, align = TextAlign.Center)
         Row(
             Modifier.fillMaxWidth().height(56.dp).graphicsLayer { translationX = shake.value.dp.toPx() }
@@ -359,7 +369,7 @@ fun MessageSheet(onDismiss: () -> Unit) = DsSheet(onDismiss) { close ->
                 val pop = remember { Animatable(.4f) }
                 LaunchedEffect(Unit) { pop.animateTo(1f, tween(600, easing = Motion.Bounce)) }
                 Box(Modifier.padding(top = 30.dp).size(84.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value }.background(c.greenSoft, CircleShape), contentAlignment = Alignment.Center) { CheckDraw(c.green) }
-                T("تم إرسال رسالتك بنجاح", 22f, FontWeight.Bold, c.label, align = TextAlign.Center)
+                T("تم إرسال رسالتك بنجاح", 20f, FontWeight.Bold, c.label, align = TextAlign.Center)
                 DsButton("إغلاق", close, Modifier.fillMaxWidth(), big = true)
             }
         } else {
@@ -466,7 +476,7 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
             }
         }
         Row(
-            Modifier.fillMaxWidth().background(c.glass).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
+            Modifier.fillMaxWidth().background(c.surface).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceAround,
         ) {
             ToolButton("refresh") { webView?.reload() }
