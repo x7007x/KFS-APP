@@ -89,6 +89,7 @@ fun NewsDetail(
     others: List<NewsArticle>,
     onOpenNews: (NewsArticle, Rect) -> Unit,
     onUrl: (String, String) -> Unit,
+    onClosing: () -> Unit = {},
     onDismissed: () -> Unit,
 ) {
     val c = Ds.c
@@ -106,6 +107,7 @@ fun NewsDetail(
     fun close() {
         if (closing) return
         closing = true
+        onClosing()
         scope.launch { prog.animateTo(0f, tween(480, easing = Motion.Spring)); onDismissed() }
     }
     BackHandler(onBack = ::close)

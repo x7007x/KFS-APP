@@ -261,16 +261,18 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
         fun openUrl(url: String, title: String) { sheet = SheetKind.Browser(url, title) }
         fun pushPage(kind: PageKind) { if (pages.lastOrNull()?.kind != kind) pages.add(PageEntry(kind)) }
         fun popTop() {
-            val e = pages.lastOrNull() ?: return
+            val e = pages.lastOrNull { it.shown } ?: return
             e.shown = false
-            scope.launch { delay(520); pages.remove(e) }
+            scope.launch { delay(650); pages.remove(e) }
         }
-        fun openNews(a: NewsArticle, r: Rect) { detail = NewsDetailState(a, r) }
+        var detailClosing by remember { mutableStateOf(false) }
+        fun openNews(a: NewsArticle, r: Rect) { detailClosing = false; detail = NewsDetailState(a, r) }
 
-        BackHandler(enabled = pages.isNotEmpty() && detail == null && sheet == null) { popTop() }
+        BackHandler(enabled = pages.any { it.shown } && detail == null && sheet == null) { popTop() }
 
         // ---- shell transforms
-        val covered = pages.isNotEmpty() || detail != null
+        // The base layer starts coming back the moment a page begins leaving, not after it has been removed.
+        val covered = pages.any { it.shown } || (detail != null && !detailClosing)
         val under by animateFloatAsState(if (covered) 1f else 0f, tween(550, easing = Motion.Spring), label = "under")
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -289,7 +291,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                     },
                 ) {
                     // base layer
-                    val glassPaused by remember { androidx.compose.runtime.derivedStateOf { under > .001f } }
+                    val glassPaused by remember { androidx.compose.runtime.derivedStateOf { under > .04f } }
                     CompositionLocalProvider(com.example.ui.ds.LocalGlassPaused provides glassPaused) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * .26f * under }) {
                         Box(Modifier.fillMaxSize().layerBackdrop(tabsBackdrop).background(c.bg)) {
@@ -328,7 +330,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                             }
                         }
                         }
-                        CompositionLocalProvider(LocalBackdrop provides tabsBackdrop) { TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter)) }
+                        CompositionLocalProvider(LocalBackdrop provides tabsBackdrop, com.example.ui.ds.LocalGlassPaused provides false) { TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter)) }
                         OfflineBanner(!isOnline, statusTop)
                     }
                     }
@@ -337,7 +339,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                     // pushed pages (college, profile)
                     pages.forEachIndexed { idx, entry ->
                         key(entry.id) {
-                            PageHost(entry, covered = idx < pages.lastIndex || detail != null, onRemoveNow = { pages.remove(entry) }) {
+                            PageHost(entry, covered = pages.drop(idx + 1).any { it.shown } || (detail != null && !detailClosing), onRemoveNow = { pages.remove(entry) }) {
                                 when (val k = entry.kind) {
                                     is PageKind.College -> CollegePage(k.college, onBack = ::popTop, onUrl = ::openUrl)
                                     PageKind.Profile -> {
@@ -356,7 +358,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                             NewsDetail(
                                 article = d.article, source = d.source,
                                 others = news.filter { it.id != d.article.id },
-                                onOpenNews = ::openNews, onUrl = ::openUrl, onDismissed = { detail = null },
+                                onOpenNews = ::openNews, onUrl = ::openUrl, onClosing = { detailClosing = true }, onDismissed = { detail = null },
                             )
                         }
                     }
