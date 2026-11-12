@@ -78,7 +78,12 @@ private const val HERO_URL = "https://www.arabcont.com/Images/ProjectImage/Confe
 @Composable
 fun AccountAvatar(profile: RealStudentProfile, size: androidx.compose.ui.unit.Dp, radius: androidx.compose.ui.unit.Dp, textSize: Float) {
     val c = Ds.c
-    val photo = if (profile.nationalNumber.isNotBlank()) "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/${profile.nationalNumber}.png" else null
+    val faculty = remember(profile) { HarDataCache.findFacultyByInfoId(profile.asFacultyInfoId.toInt()) }
+    val primary = if (profile.nationalNumber.isNotBlank()) "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/${profile.nationalNumber}.png" else null
+    val legacy = if (profile.photo.isNotBlank() && faculty != null) "https://kfs.edu.eg/${faculty.facUrl}/photo/${profile.photo}" else null
+    var useLegacy by remember(profile) { mutableStateOf(false) }
+    val photo = if (useLegacy) legacy else primary
+    val ctx = LocalContext.current
     Box(
         Modifier.size(size).clip(RoundedCornerShape(radius))
             .background(Brush.linearGradient(listOf(Color(0xFF2F86D9), Color(0xFF1A5CAA)))),
@@ -87,7 +92,14 @@ fun AccountAvatar(profile: RealStudentProfile, size: androidx.compose.ui.unit.Dp
         T(profile.fullName.take(1), textSize, FontWeight.Bold, Color.White)
         if (photo != null) {
             SubcomposeAsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(photo).crossfade(400).build(),
+                model = ImageRequest.Builder(ctx).data(photo).crossfade(400)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
+                    .addHeader("Accept", "image/png,image/*;q=0.9,*/*;q=0.5")
+                    .listener(onError = { _, r ->
+                        android.util.Log.w("AccountAvatar", "photo failed: $photo -> ${r.throwable}")
+                        if (!useLegacy && legacy != null) useLegacy = true
+                    })
+                    .build(),
                 contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                 loading = {}, error = {}, success = { SubcomposeAsyncImageContent() },
             )
@@ -170,9 +182,9 @@ fun HomeScreen(
             }
         }
 
-        // account card
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).rise(2, enterKey)) {
-            if (profile != null) LoggedInCard(profile, onProfile, onLogout) else LoggedOutCard(onLogin)
+        // sign-in card (signed-in students use the avatar in the bar to reach their account)
+        if (profile == null) {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).rise(2, enterKey)) { LoggedOutCard(onLogin) }
         }
 
         // news
@@ -305,7 +317,7 @@ private fun NewsCard(a: NewsArticle, index: Int, rail: androidx.compose.foundati
                     scaleX = s; scaleY = s; alpha = 1f - d * .35f
                 }
             }
-            .shadow(6.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.surface)
+            .clip(RoundedCornerShape(24.dp)).background(c.surface)
             .border(.5.dp, c.sep, RoundedCornerShape(24.dp))
             .onGloballyPositioned { bounds = it.boundsInRoot() }
             .dsClick(.97f) { onNews(a, bounds) },

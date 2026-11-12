@@ -97,7 +97,7 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
         Column(Modifier.fillMaxSize().layerBackdrop(backdrop).imePadding().verticalScroll(scroll).padding(top = top + 58.dp, bottom = bottom + 40.dp), content = content)
         androidx.compose.runtime.CompositionLocalProvider(com.example.ui.ds.LocalBackdrop provides backdrop) {
         Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-            Box(Modifier.matchParentSize().graphicsLayer { alpha = p }.dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 20f))
+            if (p > .01f) Box(Modifier.matchParentSize().graphicsLayer { alpha = p }.dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 20f))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp).graphicsLayer { alpha = p }.background(c.sep))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(38.dp)) {
                 Row(

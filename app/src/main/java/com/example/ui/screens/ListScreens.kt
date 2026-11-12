@@ -180,8 +180,7 @@ fun CollegesScreen(
 fun MoreScreen(
     scroll: ScrollState,
     enterKey: Int,
-    loggedIn: Boolean,
-    studentName: String,
+    profile: com.example.data.RealStudentProfile?,
     themeMode: Int,
     onThemeMode: (Int) -> Unit,
     onMessage: () -> Unit,
@@ -197,8 +196,15 @@ fun MoreScreen(
         Column(Modifier.rise(2, enterKey)) {
             GroupHeader("حسابي")
             DsList(Modifier.padding(horizontal = 16.dp)) {
-                if (loggedIn) {
-                    LinkRow("user", Color(0xFF1A5CAA), studentName, "الملف الشخصي وخدمات الطالب", onProfile)
+                if (profile != null) {
+                    DsRow(onClick = onProfile) {
+                        AccountAvatar(profile, 38.dp, 12.dp, 15f)
+                        Column(Modifier.weight(1f)) {
+                            T(profile.fullName, 15f, FontWeight.Medium, c.label, lh = 1.45f)
+                            T("الملف الشخصي وخدمات الطالب", 12.5f, color = c.label2, lh = 1.4f)
+                        }
+                        Chevron()
+                    }
                     DsDivider()
                     DsRow(onClick = onLogout) {
                         RowIconBoxRed()

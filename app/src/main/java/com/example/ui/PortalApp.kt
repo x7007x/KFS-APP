@@ -280,7 +280,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
             Box(Modifier.fillMaxSize().background(c.bg)) {
                 // shell: base + pages + detail, scaled back while a sheet is open
                 Box(
-                    Modifier.fillMaxSize().layerBackdrop(shellBackdrop).graphicsLayer {
+                    Modifier.fillMaxSize().then(if (sheet != null || toastShown) Modifier.layerBackdrop(shellBackdrop) else Modifier).graphicsLayer {
                         val s = 1f - .07f * sheetP
                         scaleX = s; scaleY = s
                         translationY = -6.dp.toPx() * sheetP
@@ -317,7 +317,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                                                 onCollege = { pushPage(PageKind.College(it)) },
                                             )
                                             else -> MoreScreen(
-                                                scroll = scrolls[3], enterKey = ek, loggedIn = profile != null, studentName = profile?.fullName ?: "",
+                                                scroll = scrolls[3], enterKey = ek, profile = profile,
                                                 themeMode = themeMode, onThemeMode = onThemeMode,
                                                 onMessage = { sheet = SheetKind.Message }, onLogin = { sheet = SheetKind.Login },
                                                 onProfile = { pushPage(PageKind.Profile) }, onLogout = { sheet = SheetKind.Logout }, onUrl = ::openUrl,

@@ -65,7 +65,7 @@ fun DsNavBar(
     val c = Ds.c
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-        Box(Modifier.matchParentSize().graphicsLayer { alpha = progress }.dsGlass(RectangleShape, border = false, blurDp = 20f))
+        if (progress > .01f) Box(Modifier.matchParentSize().graphicsLayer { alpha = progress }.dsGlass(RectangleShape, border = false, blurDp = 20f))
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp)
                 .graphicsLayer { alpha = progress }.background(c.sep),
