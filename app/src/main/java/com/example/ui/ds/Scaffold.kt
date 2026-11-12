@@ -133,7 +133,7 @@ fun TabScaffold(
         val topPad = if (showLogo) top + 62.dp else top + 6.dp
         val body: @Composable () -> Unit = {
             Column(
-                Modifier.fillMaxSize().layerBackdrop(backdrop).background(c.bg).imePadding().verticalScroll(scroll)
+                Modifier.fillMaxSize().layerBackdrop(backdrop).background(Ds.c.bg).imePadding().verticalScroll(scroll)
                     .padding(top = topPad, bottom = bottom + 118.dp),
                 content = content,
             )
