@@ -26,12 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -78,30 +78,21 @@ private const val HERO_URL = "https://www.arabcont.com/Images/ProjectImage/Confe
 @Composable
 fun AccountAvatar(profile: RealStudentProfile, size: androidx.compose.ui.unit.Dp, radius: androidx.compose.ui.unit.Dp, textSize: Float) {
     val c = Ds.c
-    val faculty = remember(profile) { HarDataCache.findFacultyByInfoId(profile.asFacultyInfoId.toInt()) }
-    val primary = if (profile.nationalNumber.isNotBlank()) "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/${profile.nationalNumber}.png" else null
-    val legacy = if (profile.photo.isNotBlank() && faculty != null) "https://kfs.edu.eg/${faculty.facUrl}/photo/${profile.photo}" else null
-    var useLegacy by remember(profile) { mutableStateOf(false) }
-    val photo = if (useLegacy) legacy else primary
     val ctx = LocalContext.current
+    val photo by produceState<java.io.File?>(null, profile.nationalNumber) {
+        value = com.example.data.ProfilePhotoStore.ensure(ctx, profile.nationalNumber)
+    }
     Box(
         Modifier.size(size).clip(RoundedCornerShape(radius))
             .background(Brush.linearGradient(listOf(Color(0xFF2F86D9), Color(0xFF1A5CAA)))),
         contentAlignment = Alignment.Center,
     ) {
         T(profile.fullName.take(1), textSize, FontWeight.Bold, Color.White)
-        if (photo != null) {
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(ctx).data(photo).crossfade(400)
-                    .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
-                    .addHeader("Accept", "image/png,image/*;q=0.9,*/*;q=0.5")
-                    .listener(onError = { _, r ->
-                        android.util.Log.w("AccountAvatar", "photo failed: $photo -> ${r.throwable}")
-                        if (!useLegacy && legacy != null) useLegacy = true
-                    })
-                    .build(),
+        val f = photo
+        if (f != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(ctx).data(f).crossfade(300).build(),
                 contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                loading = {}, error = {}, success = { SubcomposeAsyncImageContent() },
             )
         }
     }
@@ -155,7 +146,7 @@ fun HomeScreen(
         val serviceCount = SvcStudents.size + SvcStaff.size
         Box(
             Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(208.dp).rise(1, enterKey)
-                .shadow(14.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(c.tintD),
+                .clip(RoundedCornerShape(28.dp)).background(c.tintD),
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current).data(HERO_URL).crossfade(500).build(),
@@ -348,7 +339,6 @@ fun ServiceGrid(list: List<Svc>, swapKey: Int, onUrl: (String, String) -> Unit) 
                     ) {
                         Box(
                             Modifier.size(58.dp)
-                                .shadow(8.dp, RoundedCornerShape(17.dp), ambientColor = Color(g.second), spotColor = Color(g.second))
                                 .clip(RoundedCornerShape(17.dp))
                                 .background(Brush.linearGradient(listOf(Color(g.first), Color(g.second)))),
                             contentAlignment = Alignment.Center,

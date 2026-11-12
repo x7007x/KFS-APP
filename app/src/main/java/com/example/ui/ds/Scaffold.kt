@@ -38,7 +38,6 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -59,16 +58,18 @@ fun navProgress(scroll: ScrollState): Float {
 fun DsNavBar(
     title: String,
     progress: Float,
+    glass: Float,
     showLogo: Boolean,
     trailing: @Composable RowScope.() -> Unit,
 ) {
     val c = Ds.c
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-        if (progress > .01f) Box(Modifier.matchParentSize().graphicsLayer { alpha = progress }.dsGlass(RectangleShape, border = false, blurDp = 20f))
+        // The blur must be fully opaque as soon as content slides under the bar; fading it would let sharp text show through.
+        if (glass > .01f) Box(Modifier.matchParentSize().graphicsLayer { alpha = glass }.dsGlass(RectangleShape, border = false, blurDp = 20f))
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp)
-                .graphicsLayer { alpha = progress }.background(c.sep),
+                .graphicsLayer { alpha = glass }.background(c.sep),
         )
         Row(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp).height(38.dp),
@@ -106,7 +107,7 @@ private fun BoxScope.PullIndicator(fraction: Float, refreshing: Boolean) {
                 translationY = (f * 48.dp.toPx()) - 20.dp.toPx()
                 rotationZ = if (refreshing) rot.value else fraction * 240f
             }
-            .shadow(8.dp, CircleShape).background(c.surface, CircleShape),
+            .background(c.surface, CircleShape),
         contentAlignment = Alignment.Center,
     ) { DsIcon("refresh", c.tint, 18.dp, 2.2f) }
 }
@@ -125,6 +126,7 @@ fun TabScaffold(
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val p = navProgress(scroll)
+    val glass = ((scroll.value / LocalDensity.current.density) / 6f).coerceIn(0f, 1f)
     val backdrop = rememberLayerBackdrop()
     Box(Modifier.fillMaxSize()) {
         // Pages with a logo and actions keep the bar visible, so their content starts below it.
@@ -143,6 +145,6 @@ fun TabScaffold(
                 indicator = { PullIndicator(state.distanceFraction, refreshing) },
             ) { body() }
         } else body()
-        CompositionLocalProvider(LocalBackdrop provides backdrop) { DsNavBar(title, p, showLogo, trailing) }
+        CompositionLocalProvider(LocalBackdrop provides backdrop) { DsNavBar(title, p, glass, showLogo, trailing) }
     }
 }

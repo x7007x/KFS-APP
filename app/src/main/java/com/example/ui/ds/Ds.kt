@@ -40,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -292,7 +291,7 @@ fun DsSeg(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier
         // Modifier.offset is layout-direction aware, so the thumb follows the RTL order.
         Box(
             Modifier.offset { IntOffset((pos * wPx).roundToInt(), 0) }.width(w).height(34.dp)
-                .shadow(2.dp, RoundedCornerShape(9.dp)).background(c.surface, RoundedCornerShape(9.dp)),
+                .background(c.surface, RoundedCornerShape(9.dp)),
         )
         Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, l ->

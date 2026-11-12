@@ -1,5 +1,7 @@
 package com.example.ui.theme
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -114,7 +116,7 @@ fun MyApplicationTheme(
     @Suppress("UNUSED_PARAMETER") dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val ds = if (darkTheme) DarkDs else LightDs
+    val ds = animatedDs(if (darkTheme) DarkDs else LightDs)
     val scheme = if (darkTheme) {
         darkColorScheme(primary = ds.tint, onPrimary = ds.onTint, background = ds.bg, surface = ds.surface,
             onBackground = ds.label, onSurface = ds.label)
@@ -125,4 +127,21 @@ fun MyApplicationTheme(
     CompositionLocalProvider(LocalDs provides ds) {
         MaterialTheme(colorScheme = scheme, typography = Typography, content = content)
     }
+}
+
+/** Cross-fades every design token when the theme flips, so light and dark blend instead of snapping. */
+@Composable
+private fun animatedDs(target: DsColors): DsColors {
+    val spec = tween<Color>(450, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+    @Composable fun a(c: Color): Color = animateColorAsState(c, spec, label = "ds").value
+    return DsColors(
+        isDark = target.isDark,
+        bg = a(target.bg), surface = a(target.surface), fill = a(target.fill), fill2 = a(target.fill2),
+        label = a(target.label), label2 = a(target.label2), label3 = a(target.label3), sep = a(target.sep),
+        tint = a(target.tint), tintD = a(target.tintD), tintSoft = a(target.tintSoft), onTint = a(target.onTint),
+        green = a(target.green), greenSoft = a(target.greenSoft), red = a(target.red), redSoft = a(target.redSoft),
+        glass = a(target.glass), dim = a(target.dim),
+        gMed = a(target.gMed), gSci = a(target.gSci), gHum = a(target.gHum),
+        gMedS = a(target.gMedS), gSciS = a(target.gSciS), gHumS = a(target.gHumS),
+    )
 }

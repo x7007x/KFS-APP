@@ -57,7 +57,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -369,6 +368,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         onLoggedIn = { p, nid ->
                             sessionManager.saveSession(profileToJson(p), nid)
                             profile = p
+                            scope.launch { com.example.data.ProfilePhotoStore.ensure(context, p.nationalNumber) }
                             showToast("تم تسجيل الدخول", "check")
                         },
                         onDismiss = { sheet = null },
@@ -383,6 +383,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         onConfirm = {
                             scope.launch {
                                 sessionManager.clearSession()
+                                com.example.data.ProfilePhotoStore.delete(context)
                                 profile = null
                                 pages.clear()
                                 showToast("تم تسجيل الخروج", "check")
@@ -402,7 +403,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                     Row(
                         Modifier.align(Alignment.TopCenter).padding(top = statusTop + 14.dp)
                             .graphicsLayer { translationY = tyState.value * 140.dp.toPx() }
-                            .height(42.dp).shadow(14.dp, RoundedCornerShape(21.dp))
+                            .height(42.dp)
                             .dsGlass(RoundedCornerShape(21.dp), refract = true, blurDp = 14f).padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -498,7 +499,7 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
     BoxWithConstraints(
         modifier.graphicsLayer { alpha = 1f - hide; translationY = hide * 40.dp.toPx() }
             .padding(start = 14.dp, end = 14.dp, bottom = 14.dp + bottom).fillMaxWidth().height(66.dp)
-            .shadow(20.dp, RoundedCornerShape(33.dp)).dsGlass(RoundedCornerShape(33.dp), refract = true, blurDp = 20f).padding(6.dp),
+            .dsGlass(RoundedCornerShape(33.dp), refract = true, blurDp = 20f).padding(6.dp),
     ) {
         val w = maxWidth / 4
         val wPx = with(androidx.compose.ui.platform.LocalDensity.current) { w.toPx() }

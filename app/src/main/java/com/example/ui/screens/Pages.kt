@@ -43,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -97,8 +96,8 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
         Column(Modifier.fillMaxSize().layerBackdrop(backdrop).imePadding().verticalScroll(scroll).padding(top = top + 58.dp, bottom = bottom + 40.dp), content = content)
         androidx.compose.runtime.CompositionLocalProvider(com.example.ui.ds.LocalBackdrop provides backdrop) {
         Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-            if (p > .01f) Box(Modifier.matchParentSize().graphicsLayer { alpha = p }.dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 20f))
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp).graphicsLayer { alpha = p }.background(c.sep))
+            if (scroll.value > 0) Box(Modifier.matchParentSize().graphicsLayer { alpha = ((scroll.value / d) / 6f).coerceIn(0f, 1f) }.dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 20f))
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp).graphicsLayer { alpha = ((scroll.value / d) / 6f).coerceIn(0f, 1f) }.background(c.sep))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(38.dp)) {
                 Row(
                     Modifier.align(Alignment.CenterStart).height(38.dp).dsClick(.92f, onClick = onBack)
@@ -169,7 +168,7 @@ fun CollegePage(college: CollegeUi, onBack: () -> Unit, onUrl: (String, String) 
     BackHandler(onBack = onBack)
     PageScaffold(college.title, onBack) {
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 18.dp).rise(0), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.shadow(14.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = fg, spotColor = fg)) {
+            Box(Modifier) {
                 DsMono(college.title, "https://kfs.edu.eg/kfsapi/flogo/${college.logo}", fg, bg, 92.dp, 36f)
             }
             T(college.title, 20f, FontWeight.Bold, c.label, lh = 1.4f, align = TextAlign.Center)

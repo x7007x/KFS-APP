@@ -63,7 +63,6 @@ import com.example.ui.ds.dsGlass
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -155,7 +154,7 @@ fun DsSheet(
                 .fillMaxWidth()
                 .then(if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
                 .graphicsLayer { translationY = hidden.value * size.height + drag }
-                .shadow(20.dp, shape).clip(shape).then(if (action) Modifier.dsGlass(shape, refract = true, blurDp = 22f) else Modifier.background(c.bg)),
+                .clip(shape).then(if (action) Modifier.dsGlass(shape, refract = true, blurDp = 22f) else Modifier.background(c.bg)),
         ) {
             Box(
                 Modifier.fillMaxWidth().height(26.dp).pointerInput(Unit) {
@@ -278,7 +277,6 @@ fun LoginSheet(onLoggedIn: suspend (RealStudentProfile, String) -> Unit, onDismi
     ) {
         Box(
             Modifier.size(76.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = pop.value.coerceIn(0f, 1f) }
-                .shadow(14.dp, RoundedCornerShape(24.dp), ambientColor = c.tint, spotColor = c.tint)
                 .clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF2F86D9), c.tintD))),
             contentAlignment = Alignment.Center,
         ) { DsIcon("cap", Color.White, 38.dp, 1.6f) }

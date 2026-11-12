@@ -90,6 +90,23 @@ object KfuNetworkClient {
             .build()
     }
 
+    /** Downloads the student photo bytes from the portal (the portal host needs this client's TLS settings). */
+    suspend fun fetchStudentPhoto(nationalNumber: String): ByteArray? = withContext(Dispatchers.IO) {
+        val url = "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/$nationalNumber.png"
+        try {
+            val request = Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
+                .header("Accept", "image/png,image/*;q=0.9,*/*;q=0.5").build()
+            client.newCall(request).execute().use { r ->
+                if (!r.isSuccessful) { Log.w(TAG, "photo HTTP ${r.code}"); return@use null }
+                val bytes = r.body?.bytes()
+                if (bytes == null || bytes.isEmpty()) { Log.w(TAG, "photo empty body"); null } else bytes
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "photo failed: $e"); null
+        }
+    }
+
     private const val BASE_URL = "https://kfs.edu.eg"
 
     private fun getPhotoBase(facId: Int): String {

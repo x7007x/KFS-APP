@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -100,7 +99,7 @@ private fun FeaturedNews(a: NewsArticle, onNews: (NewsArticle, Rect) -> Unit) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     Box(
         Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp).fillMaxWidth().height(250.dp)
-            .shadow(14.dp, RoundedCornerShape(26.dp)).clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(26.dp))
             .onGloballyPositioned { bounds = it.boundsInRoot() }
             .dsClick(.97f) { onNews(a, bounds) },
     ) {
