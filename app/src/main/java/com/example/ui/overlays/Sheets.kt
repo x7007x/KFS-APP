@@ -154,7 +154,7 @@ fun DsSheet(
                 .fillMaxWidth()
                 .then(if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
                 .graphicsLayer { translationY = hidden.value * size.height + drag }
-                .clip(shape).then(if (action) Modifier.dsGlass(shape, refract = true, blurDp = 22f) else Modifier.background(c.bg)),
+                .clip(shape).then(if (action) Modifier.dsGlass(shape, blurDp = 22f) else Modifier.background(c.bg)),
         ) {
             Box(
                 Modifier.fillMaxWidth().height(26.dp).pointerInput(Unit) {

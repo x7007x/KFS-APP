@@ -292,7 +292,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                     val glassPaused by remember { androidx.compose.runtime.derivedStateOf { under > .001f } }
                     CompositionLocalProvider(com.example.ui.ds.LocalGlassPaused provides glassPaused) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = size.width * .26f * under }) {
-                        Box(Modifier.fillMaxSize().layerBackdrop(tabsBackdrop)) {
+                        Box(Modifier.fillMaxSize().layerBackdrop(tabsBackdrop).background(c.bg)) {
                         for (i in 0..3) {
                             key(i) {
                                 TabLayer(on = tab == i, dir = tabDir) {
@@ -407,7 +407,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         Modifier.align(Alignment.TopCenter).padding(top = statusTop + 14.dp)
                             .graphicsLayer { translationY = tyState.value * 140.dp.toPx() }
                             .height(42.dp)
-                            .dsGlass(RoundedCornerShape(21.dp), refract = true, blurDp = 14f).padding(horizontal = 16.dp),
+                            .dsGlass(RoundedCornerShape(21.dp), blurDp = 14f).padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         DsIcon(t.icon, c.green, 18.dp, 2.2f)
@@ -502,7 +502,7 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
     BoxWithConstraints(
         modifier.graphicsLayer { alpha = 1f - hide; translationY = hide * 40.dp.toPx() }
             .padding(start = 14.dp, end = 14.dp, bottom = 14.dp + bottom).fillMaxWidth().height(66.dp)
-            .dsGlass(RoundedCornerShape(33.dp), refract = true, blurDp = 20f).padding(6.dp),
+            .dsGlass(RoundedCornerShape(33.dp), blurDp = 20f).padding(6.dp),
     ) {
         val w = maxWidth / 4
         val wPx = with(androidx.compose.ui.platform.LocalDensity.current) { w.toPx() }

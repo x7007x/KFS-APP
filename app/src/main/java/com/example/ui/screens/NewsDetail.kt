@@ -159,7 +159,7 @@ fun NewsDetail(
 private fun DetailRound(icon: String, desc: String, onClick: () -> Unit) {
     val c = Ds.c
     Box(
-        Modifier.size(38.dp).dsClick(.88f, onClick = onClick).dsGlass(CircleShape, refract = true, blurDp = 10f),
+        Modifier.size(38.dp).dsClick(.88f, onClick = onClick).clip(CircleShape).background(c.surface).border(.5.dp, c.sep, CircleShape),
         contentAlignment = Alignment.Center,
     ) { DsIcon(icon, c.label, 20.dp, if (icon == "close") 2.2f else 1.8f) }
 }
