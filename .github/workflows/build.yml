@@ -394,7 +394,7 @@ jobs:
             APP_NAME="$(grep -oP '<string name="app_name">\K[^<]+' "$STRINGS_FILE" | head -n 1 || true)"
           fi
 
-          PKG_NAME="${PKG_NAME:-com.aistudio.kfuportal.hgbvcd}"
+          PKG_NAME="${PKG_NAME:-com.kfs.edu}"
           VER_NAME="${VER_NAME:-1.0}"
           VER_CODE="${VER_CODE:-1}"
           APP_NAME="${APP_NAME:-جامعة كفر الشيخ}"

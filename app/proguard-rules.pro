@@ -15,7 +15,7 @@
 -keep class kotlin.Metadata { *; }
 
 # --- App data classes (parsed manually via org.json.JSONObject) ---
--keep class com.example.data.** { *; }
+-keep class com.kfs.edu.data.** { *; }
 
 # --- OkHttp (official) ---
 -dontwarn okhttp3.**
@@ -70,7 +70,7 @@
 }
 
 # --- Keep BuildConfig ---
--keep class com.example.BuildConfig { *; }
+-keep class com.kfs.edu.BuildConfig { *; }
 
 # --- Room (generated code is usually safe, but keep entities just in case) ---
 -keep class * extends androidx.room.RoomDatabase { *; }
