@@ -1,3 +1,4 @@
+// Developed by Ahmed Negm (أحمد نجم) - ahmed-negm.dev
 package com.kfs.edu
 
 import android.content.Context

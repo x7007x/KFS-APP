@@ -265,61 +265,111 @@ object KfuNetworkClient {
         return@withContext list
     }
 
+    /** Ready-made login response (same keys and values the server returns), used while the live request below is disabled. */
+    private const val SAMPLE_LOGIN_JSON = """{
+  "NATIONAL_NUMBER": "30603071501508",
+  "FULL_NAME_AR": "سلمى طه عبدالهادى hh راشد",
+  "METHOD_DESCR": "salma_3479a@sci.kfs.edu.eg",
+  "METHOD_NOTES": "Z@727403210686oc",
+  "STUD_CODE": "1609120240101081",
+  "PASSWORD_ITEC": "299621",
+  "phase_parent": "المستوى الثانى",
+  "GENDER_DESCR_AR": "أنثى",
+  "CASE_DESCR_AR": "مستجد",
+  "RELIGION_DESCR_AR": "مسلم",
+  "METHOD_DESCR_AR": "ساعات معتمدة",
+  "NATURE_DESCR_AR": "انتظام",
+  "ED_CODE_STUD_ENROLL_AR": "مقيد",
+  "Program_Name": "الجيولوجيا",
+  "AS_FACULTY_INFO_ID": 296.0,
+  "STUD_PHOTO": "~/userdocuments//2//296//Staff//0/491638692554718109822.jpg",
+  "FCM_TOKEN": "eqn04h6_S0KKaQqDdGFR8F:APA91bEdofsFhNN2Ea616p_PKI_4MJe6qnjO4krQUAApJbyS6W2ADt8HwuFc8-o152mPiXSg18MsLJjjV6BCbeEVN3HHJW2Hs8CyEZXd6RtL84p0p_qX6d8",
+  "PAYMENT_STATUS": "000"
+}"""
+
+    private fun profileFrom(bodyString: String): RealStudentProfile? = try {
+        val obj = JSONObject(bodyString)
+        if (obj.has("FULL_NAME_AR") && !obj.isNull("FULL_NAME_AR")) {
+            RealStudentProfile(
+                nationalNumber = obj.optString("NATIONAL_NUMBER"),
+                fullName = obj.optString("FULL_NAME_AR"),
+                email = obj.optString("METHOD_DESCR"),
+                notes = obj.optString("METHOD_NOTES"),
+                studentCode = obj.optString("STUD_CODE"),
+                passwordItec = obj.optString("PASSWORD_ITEC"),
+                phaseParent = obj.optString("phase_parent"),
+                gender = obj.optString("GENDER_DESCR_AR"),
+                caseDescr = obj.optString("CASE_DESCR_AR"),
+                religion = obj.optString("RELIGION_DESCR_AR"),
+                methodDescr = obj.optString("METHOD_DESCR_AR"),
+                natureDescr = obj.optString("NATURE_DESCR_AR"),
+                enrollStatus = obj.optString("ED_CODE_STUD_ENROLL_AR"),
+                programName = obj.optString("Program_Name"),
+                asFacultyInfoId = obj.optDouble("AS_FACULTY_INFO_ID"),
+                photo = obj.optString("STUD_PHOTO"),
+            )
+        } else null
+    } catch (_: Exception) { null }
+
     suspend fun loginWithNationalId(nationalId: String): RealStudentProfile? = withContext(Dispatchers.IO) {
-        try {
-            val mediaType = "application/json; charset=utf-8".toMediaType()
-            val jsonBody = "\"qkdd!VhSUSfUIhqN\""
-            val requestBody = jsonBody.toRequestBody(mediaType)
+        // Live request (disabled):
+    //    try {
+    //        val mediaType = "application/json; charset=utf-8".toMediaType()
+    //        val jsonBody = "\"qkdd!VhSUSfUIhqN\""
+    //        val requestBody = jsonBody.toRequestBody(mediaType)
+    //
+    //        val request = Request.Builder()
+    //            .url("https://mis.kfs.edu.eg/sh_kfs/api/ShehabStud?nid=$nationalId")
+    //            .post(requestBody)
+    //            .addHeader("User-Agent", "Dart/3.9 (dart:io)")
+    //            .addHeader("Accept-Encoding", "gzip")
+    //            .addHeader("Content-Type", "application/json; charset=utf-8")
+    //            .build()
+    //
+    //        client.newCall(request).execute().use { response ->
+    //            val bodyString = response.body?.string() ?: ""
+    //            Log.d(TAG, "login code=${response.code} body=${bodyString.take(200)}")
+    //            if (response.code == 200 && bodyString.isNotBlank()) {
+    //                try {
+    //                    val obj = JSONObject(bodyString)
+    //                    if (obj.has("FULL_NAME_AR") && !obj.isNull("FULL_NAME_AR")) {
+    //                        return@withContext RealStudentProfile(
+    //                            nationalNumber = obj.optString("NATIONAL_NUMBER"),
+    //                            fullName = obj.optString("FULL_NAME_AR"),
+    //                            email = obj.optString("METHOD_DESCR"),
+    //                            notes = obj.optString("METHOD_NOTES"),
+    //                            studentCode = obj.optString("STUD_CODE"),
+    //                            passwordItec = obj.optString("PASSWORD_ITEC"),
+    //                            phaseParent = obj.optString("phase_parent"),
+    //                            gender = obj.optString("GENDER_DESCR_AR"),
+    //                            caseDescr = obj.optString("CASE_DESCR_AR"),
+    //                            religion = obj.optString("RELIGION_DESCR_AR"),
+    //                            methodDescr = obj.optString("METHOD_DESCR_AR"),
+    //                            natureDescr = obj.optString("NATURE_DESCR_AR"),
+    //                            enrollStatus = obj.optString("ED_CODE_STUD_ENROLL_AR"),
+    //                            programName = obj.optString("Program_Name"),
+    //                            asFacultyInfoId = obj.optDouble("AS_FACULTY_INFO_ID"),
+    //                            photo = obj.optString("STUD_PHOTO")
+    //                        )
+    //                    }
+    //                } catch (_: Exception) { }
+    //            }
+    //            Log.w(TAG, "login failed: HTTP ${response.code}")
+    //        }
+    //    } catch (e: javax.net.ssl.SSLHandshakeException) {
+    //        Log.e(TAG, "login SSL error: ${e.message}")
+    //        throw e
+    //    } catch (e: java.net.SocketTimeoutException) {
+    //        Log.e(TAG, "login timeout: ${e.message}")
+    //        throw e
+    //    } catch (e: Exception) {
+    //        Log.e(TAG, "login error: ${e.message}")
+    //        throw e
+    //    }
+    //    return@withContext null
+    //}
 
-            val request = Request.Builder()
-                .url("https://mis.kfs.edu.eg/sh_kfs/api/ShehabStud?nid=$nationalId")
-                .post(requestBody)
-                .addHeader("User-Agent", "Dart/3.9 (dart:io)")
-                .addHeader("Accept-Encoding", "gzip")
-                .addHeader("Content-Type", "application/json; charset=utf-8")
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                val bodyString = response.body?.string() ?: ""
-                Log.d(TAG, "login code=${response.code} body=${bodyString.take(200)}")
-                if (response.code == 200 && bodyString.isNotBlank()) {
-                    try {
-                        val obj = JSONObject(bodyString)
-                        if (obj.has("FULL_NAME_AR") && !obj.isNull("FULL_NAME_AR")) {
-                            return@withContext RealStudentProfile(
-                                nationalNumber = obj.optString("NATIONAL_NUMBER"),
-                                fullName = obj.optString("FULL_NAME_AR"),
-                                email = obj.optString("METHOD_DESCR"),
-                                notes = obj.optString("METHOD_NOTES"),
-                                studentCode = obj.optString("STUD_CODE"),
-                                passwordItec = obj.optString("PASSWORD_ITEC"),
-                                phaseParent = obj.optString("phase_parent"),
-                                gender = obj.optString("GENDER_DESCR_AR"),
-                                caseDescr = obj.optString("CASE_DESCR_AR"),
-                                religion = obj.optString("RELIGION_DESCR_AR"),
-                                methodDescr = obj.optString("METHOD_DESCR_AR"),
-                                natureDescr = obj.optString("NATURE_DESCR_AR"),
-                                enrollStatus = obj.optString("ED_CODE_STUD_ENROLL_AR"),
-                                programName = obj.optString("Program_Name"),
-                                asFacultyInfoId = obj.optDouble("AS_FACULTY_INFO_ID"),
-                                photo = obj.optString("STUD_PHOTO")
-                            )
-                        }
-                    } catch (_: Exception) { }
-                }
-                Log.w(TAG, "login failed: HTTP ${response.code}")
-            }
-        } catch (e: javax.net.ssl.SSLHandshakeException) {
-            Log.e(TAG, "login SSL error: ${e.message}")
-            throw e
-        } catch (e: java.net.SocketTimeoutException) {
-            Log.e(TAG, "login timeout: ${e.message}")
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "login error: ${e.message}")
-            throw e
-        }
-        return@withContext null
+        profileFrom(SAMPLE_LOGIN_JSON)
     }
 
     suspend fun sendUniversityMessage(senderName: String, senderEmail: String, subject: String, message: String): Boolean {
