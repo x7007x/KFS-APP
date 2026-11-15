@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
@@ -331,7 +332,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         }
                         }
                         CompositionLocalProvider(LocalBackdrop provides tabsBackdrop, com.kfs.edu.ui.ds.LocalGlassPaused provides false) { TabBar(tab, ::selectTab, Modifier.align(Alignment.BottomCenter)) }
-                        OfflineBanner(!isOnline, statusTop)
+                        OfflinePill(!isOnline, navBottom, Modifier.align(Alignment.BottomCenter))
                     }
                     }
                     Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .1f * under)) })
@@ -526,18 +527,23 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
     }
 }
 
+/** Small status capsule above the tab bar: never covers the header, shrinks to an icon after a few seconds. */
 @Composable
-private fun OfflineBanner(offline: Boolean, statusTop: androidx.compose.ui.unit.Dp) {
+private fun OfflinePill(offline: Boolean, bottomInset: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     val c = Ds.c
-    val y by animateFloatAsState(if (offline) 0f else -1f, tween(500, easing = Motion.Spring), label = "offline")
-    if (y > -.99f) {
-        Row(
-            Modifier.fillMaxWidth().graphicsLayer { translationY = y * size.height }.background(c.red).padding(top = statusTop).height(34.dp + statusTop),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DsIcon("wifioff", Color.White, 16.dp, 2f)
-            T("أنت غير متصل بالإنترنت", 13f, FontWeight.SemiBold, Color.White, lh = 1.2f)
-        }
+    var expanded by remember { mutableStateOf(true) }
+    LaunchedEffect(offline) { if (offline) { expanded = true; delay(4000); expanded = false } }
+    val shown = animateFloatAsState(if (offline) 1f else 0f, tween(450, easing = Motion.Bounce), label = "offline")
+    if (!offline && shown.value < .01f) return
+    Row(
+        modifier.padding(bottom = bottomInset + 14.dp + 66.dp + 10.dp)
+            .graphicsLayer { alpha = shown.value.coerceIn(0f, 1f); scaleX = .8f + .2f * shown.value; scaleY = .8f + .2f * shown.value }
+            .height(32.dp).clip(RoundedCornerShape(16.dp)).background(c.red).padding(horizontal = 9.dp)
+            .animateContentSize(tween(350, easing = Motion.Spring)),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DsIcon("wifioff", Color.White, 15.dp, 2f)
+        if (expanded) T("لا يوجد اتصال", 12.5f, FontWeight.SemiBold, Color.White, lh = 1.2f, maxLines = 1)
     }
 }
 
