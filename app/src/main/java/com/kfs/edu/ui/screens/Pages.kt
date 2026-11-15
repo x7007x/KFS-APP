@@ -74,6 +74,7 @@ import com.kfs.edu.ui.ds.T
 import com.kfs.edu.ui.ds.TileGradients
 import com.kfs.edu.ui.ds.dsClick
 import com.kfs.edu.ui.ds.dsGlass
+import com.kfs.edu.ui.ds.bleed
 import androidx.compose.foundation.layout.imePadding
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -90,13 +91,12 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val d = LocalDensity.current.density
-    val p = (((scroll.value / d) - 30f) / 36f).coerceIn(0f, 1f)
     Box(Modifier.fillMaxSize().background(c.bg)) {
         val backdrop = rememberLayerBackdrop()
         Column(Modifier.fillMaxSize().layerBackdrop(backdrop).background(c.bg).imePadding().verticalScroll(scroll).padding(top = top + 58.dp, bottom = bottom + 40.dp), content = content)
         androidx.compose.runtime.CompositionLocalProvider(com.kfs.edu.ui.ds.LocalBackdrop provides backdrop) {
         Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
-            if (scroll.value > 0) Box(Modifier.matchParentSize().graphicsLayer { alpha = ((scroll.value / d) / 6f).coerceIn(0f, 1f) }.dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 20f))
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = ((scroll.value / d) / 6f).coerceIn(0f, 1f) }.bleed(16.dp, 16.dp).dsGlass(androidx.compose.ui.graphics.RectangleShape, border = false, blurDp = 16f))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp).graphicsLayer { alpha = ((scroll.value / d) / 6f).coerceIn(0f, 1f) }.background(c.sep))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(38.dp)) {
                 Row(
@@ -107,7 +107,7 @@ fun PageScaffold(title: String, onBack: () -> Unit, content: @Composable android
                     DsIcon("chevR", c.tint, 20.dp, 2.4f)
                     T("رجوع", 15f, FontWeight.Medium, c.tint, lh = 1.2f)
                 }
-                T(title, 16f, FontWeight.SemiBold, c.label, maxLines = 1, modifier = Modifier.align(Alignment.Center).graphicsLayer { alpha = p; translationY = (1f - p) * 7.dp.toPx() })
+                T(title, 16f, FontWeight.SemiBold, c.label, maxLines = 1, modifier = Modifier.align(Alignment.Center).graphicsLayer { val p = (((scroll.value / d) - 30f) / 36f).coerceIn(0f, 1f); alpha = p; translationY = (1f - p) * 7.dp.toPx() })
             }
         }
         }

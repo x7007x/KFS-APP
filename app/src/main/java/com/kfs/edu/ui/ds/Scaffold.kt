@@ -57,8 +57,8 @@ fun navProgress(scroll: ScrollState): Float {
 @Composable
 fun DsNavBar(
     title: String,
-    progress: Float,
-    glass: Float,
+    progress: () -> Float,
+    glass: () -> Float,
     showLogo: Boolean,
     trailing: @Composable RowScope.() -> Unit,
 ) {
@@ -66,10 +66,10 @@ fun DsNavBar(
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Box(Modifier.fillMaxWidth().height(top + 58.dp)) {
         // The blur must be fully opaque as soon as content slides under the bar; fading it would let sharp text show through.
-        if (glass > .01f) Box(Modifier.matchParentSize().graphicsLayer { alpha = glass }.dsGlass(RectangleShape, border = false, blurDp = 20f))
+        Box(Modifier.matchParentSize().graphicsLayer { alpha = glass() }.bleed(16.dp, 16.dp).dsGlass(RectangleShape, border = false, blurDp = 16f))
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(.5.dp)
-                .graphicsLayer { alpha = glass }.background(c.sep),
+                .graphicsLayer { alpha = glass() }.background(c.sep),
         )
         Row(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp).height(38.dp),
@@ -83,7 +83,7 @@ fun DsNavBar(
                 val px = with(LocalDensity.current) { 7.dp.toPx() }
                 T(
                     title, 16f, FontWeight.SemiBold, c.label,
-                    modifier = Modifier.graphicsLayer { alpha = progress; translationY = (1f - progress) * px },
+                    modifier = Modifier.graphicsLayer { val pr = progress(); alpha = pr; translationY = (1f - pr) * px },
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), content = trailing)
@@ -125,8 +125,8 @@ fun TabScaffold(
 ) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val p = navProgress(scroll)
-    val glass = ((scroll.value / LocalDensity.current.density) / 6f).coerceIn(0f, 1f)
+    // Scroll position is only read inside draw-phase lambdas, so scrolling never recomposes the screen.
+    val d = LocalDensity.current.density
     val backdrop = rememberLayerBackdrop()
     Box(Modifier.fillMaxSize()) {
         // Pages with a logo and actions keep the bar visible, so their content starts below it.
@@ -145,6 +145,6 @@ fun TabScaffold(
                 indicator = { PullIndicator(state.distanceFraction, refreshing) },
             ) { body() }
         } else body()
-        CompositionLocalProvider(LocalBackdrop provides backdrop) { DsNavBar(title, p, glass, showLogo, trailing) }
+        CompositionLocalProvider(LocalBackdrop provides backdrop) { DsNavBar(title, { (((scroll.value / d) - 14f) / 40f).coerceIn(0f, 1f) }, { ((scroll.value / d) / 6f).coerceIn(0f, 1f) }, showLogo, trailing) }
     }
 }
