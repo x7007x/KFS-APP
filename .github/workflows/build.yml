@@ -36,7 +36,7 @@ concurrency:
 env:
   TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TG_CHAT: -1004365966306
-  TG_THREAD: 3
+  TG_THREAD: 443
   BUILD_TYPE: ${{ github.event.inputs.build_type || 'release' }}
   VERSION_NAME_OVERRIDE: ${{ github.event.inputs.version_name || '' }}
   VERSION_CODE_OVERRIDE: ${{ github.event.inputs.version_code || '' }}
