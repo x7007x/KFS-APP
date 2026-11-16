@@ -80,7 +80,7 @@ fun AccountAvatar(profile: RealStudentProfile, size: androidx.compose.ui.unit.Dp
     val c = Ds.c
     val ctx = LocalContext.current
     val photo by produceState<java.io.File?>(null, profile.nationalNumber) {
-        value = com.kfs.edu.data.ProfilePhotoStore.ensure(ctx, profile.nationalNumber)
+        value = com.kfs.edu.data.ProfilePhotoStore.ensure(ctx, profile.nationalNumber, profile.gender.contains("أنثى"))
     }
     Box(
         Modifier.size(size).clip(RoundedCornerShape(radius))

@@ -90,17 +90,29 @@ object KfuNetworkClient {
             .build()
     }
 
-    /** Downloads the student photo bytes from the portal (the portal host needs this client's TLS settings). */
-    suspend fun fetchStudentPhoto(nationalNumber: String): ByteArray? = withContext(Dispatchers.IO) {
-        val url = "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/$nationalNumber.jpg"
+    /**
+     * Student photo. The real portal request is disabled (commented out below); a random portrait
+     * (gender-matched, picked at random) is downloaded instead.
+     */
+    suspend fun fetchStudentPhoto(nationalNumber: String, female: Boolean = false): ByteArray? = withContext(Dispatchers.IO) {
+        // Real request (disabled):
+        // val url = "https://portal.kfs.edu.eg/KFSUnStudDataAPI/sphoto/$nationalNumber.jpg"
+        // try {
+        //     val request = Request.Builder().url(url)
+        //         .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
+        //         .header("Accept", "image/jpeg,image/*;q=0.9,*/*;q=0.5").build()
+        //     client.newCall(request).execute().use { r ->
+        //         if (!r.isSuccessful) { Log.w(TAG, "photo HTTP ${r.code}"); return@use null }
+        //         val bytes = r.body?.bytes()
+        //         if (bytes == null || bytes.isEmpty()) { Log.w(TAG, "photo empty body"); null } else bytes
+        //     }
+        // } catch (e: Exception) { Log.w(TAG, "photo failed: $e"); null }
+        val url = "https://randomuser.me/api/portraits/${if (female) "women" else "men"}/${java.util.Random().nextInt(90)}.jpg"
         try {
-            val request = Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
-                .header("Accept", "image/jpeg,image/*;q=0.9,*/*;q=0.5").build()
+            val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Linux; Android 13)").build()
             client.newCall(request).execute().use { r ->
                 if (!r.isSuccessful) { Log.w(TAG, "photo HTTP ${r.code}"); return@use null }
-                val bytes = r.body?.bytes()
-                if (bytes == null || bytes.isEmpty()) { Log.w(TAG, "photo empty body"); null } else bytes
+                r.body?.bytes()?.takeIf { it.isNotEmpty() }
             }
         } catch (e: Exception) {
             Log.w(TAG, "photo failed: $e"); null

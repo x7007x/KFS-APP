@@ -22,12 +22,12 @@ object ProfilePhotoStore {
         File(File(context.filesDir, "student_photo").apply { mkdirs() }, "${nationalNumber.filter { it.isDigit() }}.jpg")
 
     /** Returns the stored photo, downloading it first when this login has none yet. Null when it cannot be fetched. */
-    suspend fun ensure(context: Context, nationalNumber: String): File? = withContext(Dispatchers.IO) {
+    suspend fun ensure(context: Context, nationalNumber: String, female: Boolean = false): File? = withContext(Dispatchers.IO) {
         if (nationalNumber.isBlank()) return@withContext null
         lock.withLock {
             val target = file(context, nationalNumber)
             if (target.length() > 0) return@withLock target
-            val raw = KfuNetworkClient.fetchStudentPhoto(nationalNumber) ?: return@withLock null
+            val raw = KfuNetworkClient.fetchStudentPhoto(nationalNumber, female) ?: return@withLock null
             val bytes = decodable(raw) ?: run { Log.w(TAG, "photo response is not an image (${raw.size} bytes)"); return@withLock null }
             target.writeBytes(bytes)
             target

@@ -374,7 +374,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         onLoggedIn = { p, nid ->
                             sessionManager.saveSession(profileToJson(p), nid)
                             profile = p
-                            scope.launch { com.kfs.edu.data.ProfilePhotoStore.ensure(context, p.nationalNumber) }
+                            scope.launch { com.kfs.edu.data.ProfilePhotoStore.ensure(context, p.nationalNumber, p.gender.contains("أنثى")) }
                             showToast("تم تسجيل الدخول", "check")
                         },
                         onDismiss = { sheet = null },
