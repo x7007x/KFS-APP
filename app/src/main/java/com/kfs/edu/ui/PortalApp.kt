@@ -189,18 +189,8 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
 
         // Notifications: account / system notices built only from real state (never the news list).
         val uiPrefs = remember { context.getSharedPreferences("kfu_ui", Context.MODE_PRIVATE) }
-        val notifs = remember(profile, isOnline, news.size, colleges.size) {
-            buildList {
-                val p = profile
-                if (p == null) add(NotifItem("user", "لم تسجّل الدخول بعد", "سجّل الدخول برقمك القومي لعرض بياناتك وصورتك.", "login"))
-                else {
-                    add(NotifItem("check", "حالة القيد: ${p.enrollStatus}", "${p.programName} · ${p.phaseParent} · ${p.caseDescr}", "enroll"))
-                    add(NotifItem("user", "مرحباً ${p.fullName.trim().split(" ").firstOrNull().orEmpty()}", "كود الطالب ${p.studentCode} · نظام ${p.methodDescr}", "acct"))
-                }
-                if (!isOnline) add(NotifItem("wifioff", "أنت غير متصل بالإنترنت", "يتم عرض آخر بيانات محفوظة على جهازك.", "offline"))
-                if (news.isNotEmpty() || colleges.isNotEmpty()) add(NotifItem("refresh", "تم تحديث البيانات", "${colleges.size} كلية و${news.size} خبر محمّلة الآن.", "sync"))
-            }
-        }
+        // Notifications are intentionally empty for now.
+        val notifs = emptyList<NotifItem>()
         val notifSig = remember(notifs) { notifs.joinToString("|") { it.key + it.title }.hashCode() }
         var seenSig by remember { mutableIntStateOf(uiPrefs.getInt("notif_seen_sig", 0)) }
         val unreadCount = if (seenSig == notifSig) 0 else notifs.count { it.key != "sync" }
