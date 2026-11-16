@@ -189,23 +189,30 @@ fun XButton(icon: String, onClick: () -> Unit) {
 
 // ------------------------------------------------------------------ notifications
 
+data class NotifItem(val icon: String, val title: String, val body: String, val key: String)
+
 @Composable
-fun NotificationsSheet(items: List<NewsArticle>, unreadIds: Set<String>, onOpen: (NewsArticle, androidx.compose.ui.geometry.Rect) -> Unit, onDismiss: () -> Unit) = DsSheet(onDismiss) { close ->
+fun NotificationsSheet(items: List<NotifItem>, unread: Boolean, onAction: (String) -> Unit, onDismiss: () -> Unit) = DsSheet(onDismiss) { close ->
     val c = Ds.c
     Column {
         SheetHeader("الإشعارات", close)
         if (items.isEmpty()) {
-            com.kfs.edu.ui.ds.EmptyState("bell", "لا توجد إشعارات", "ستظهر هنا أخبار الجامعة فور نشرها.")
+            com.kfs.edu.ui.ds.EmptyState("bell", "لا توجد إشعارات", "ستظهر هنا تنبيهات حسابك وحالة التطبيق.")
         } else {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
                 DsList {
-                    items.take(12).forEachIndexed { i, n ->
+                    items.forEachIndexed { i, n ->
                         if (i > 0) DsDivider()
-                        Box {
-                            com.kfs.edu.ui.screens.NewsRow(n, onClick = { r -> close(); onOpen(n, r) })
-                            if (n.id in unreadIds) {
-                                Box(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 8.dp).size(10.dp).background(c.tint, CircleShape))
+                        Row(
+                            Modifier.fillMaxWidth().dsClick(.98f) { if (n.key == "login") { close(); onAction(n.key) } }.padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(Modifier.size(38.dp).background(c.tintSoft, CircleShape), contentAlignment = Alignment.Center) { DsIcon(n.icon, c.tint, 20.dp) }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                T(n.title, 15f, FontWeight.SemiBold, c.label)
+                                T(n.body, 13f, color = c.label2, lh = 1.5f)
                             }
+                            if (unread && n.key != "sync") Box(Modifier.size(9.dp).background(c.tint, CircleShape))
                         }
                     }
                 }

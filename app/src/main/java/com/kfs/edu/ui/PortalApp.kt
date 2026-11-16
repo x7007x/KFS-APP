@@ -90,6 +90,7 @@ import com.kfs.edu.ui.overlays.LoginSheet
 import com.kfs.edu.ui.overlays.LogoutSheet
 import com.kfs.edu.ui.overlays.MessageSheet
 import com.kfs.edu.ui.overlays.NotificationsSheet
+import com.kfs.edu.ui.overlays.NotifItem
 import com.kfs.edu.ui.screens.CollegePage
 import com.kfs.edu.ui.screens.CollegesScreen
 import com.kfs.edu.ui.screens.HomeScreen
@@ -186,15 +187,24 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
         var toastShown by remember { mutableStateOf(false) }
         var toastSeq by remember { mutableIntStateOf(0) }
 
-        // Notifications are the university's real news; an item is unread until the bell sheet has been opened after it appeared.
+        // Notifications: account / system notices built only from real state (never the news list).
         val uiPrefs = remember { context.getSharedPreferences("kfu_ui", Context.MODE_PRIVATE) }
-        var seenMax by remember { mutableIntStateOf(uiPrefs.getInt("notif_seen_max", -1)) }
-        val newestId = remember(news) { news.maxOfOrNull { it.topicId } ?: 0 }
-        LaunchedEffect(newestId) {
-            if (seenMax < 0 && newestId > 0) { seenMax = newestId; uiPrefs.edit().putInt("notif_seen_max", newestId).apply() }
+        val notifs = remember(profile, isOnline, news.size, colleges.size) {
+            buildList {
+                val p = profile
+                if (p == null) add(NotifItem("user", "لم تسجّل الدخول بعد", "سجّل الدخول برقمك القومي لعرض بياناتك وصورتك.", "login"))
+                else {
+                    add(NotifItem("check", "حالة القيد: ${p.enrollStatus}", "${p.programName} · ${p.phaseParent} · ${p.caseDescr}", "enroll"))
+                    add(NotifItem("user", "مرحباً ${p.fullName.trim().split(" ").firstOrNull().orEmpty()}", "كود الطالب ${p.studentCode} · نظام ${p.methodDescr}", "acct"))
+                }
+                if (!isOnline) add(NotifItem("wifioff", "أنت غير متصل بالإنترنت", "يتم عرض آخر بيانات محفوظة على جهازك.", "offline"))
+                if (news.isNotEmpty() || colleges.isNotEmpty()) add(NotifItem("refresh", "تم تحديث البيانات", "${colleges.size} كلية و${news.size} خبر محمّلة الآن.", "sync"))
+            }
         }
-        val unreadIds = remember(news, seenMax) { if (seenMax < 0) emptySet() else news.filter { it.topicId > seenMax }.map { it.id }.toSet() }
-        fun markNotifsSeen() { if (newestId > seenMax) { seenMax = newestId; uiPrefs.edit().putInt("notif_seen_max", newestId).apply() } }
+        val notifSig = remember(notifs) { notifs.joinToString("|") { it.key + it.title }.hashCode() }
+        var seenSig by remember { mutableIntStateOf(uiPrefs.getInt("notif_seen_sig", 0)) }
+        val unreadCount = if (seenSig == notifSig) 0 else notifs.count { it.key != "sync" }
+        fun markNotifsSeen() { seenSig = notifSig; uiPrefs.edit().putInt("notif_seen_sig", notifSig).apply() }
         val tabsBackdrop = rememberLayerBackdrop()
         val shellBackdrop = rememberLayerBackdrop()
 
@@ -302,7 +312,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                                         val ek = visits[i] + if (splashClosing) 1 else 0
                                         when (i) {
                                             0 -> HomeScreen(
-                                                scroll = scrolls[0], enterKey = ek, news = news, colleges = colleges, profile = profile, isDark = isDark, unread = unreadIds.size,
+                                                scroll = scrolls[0], enterKey = ek, news = news, colleges = colleges, profile = profile, isDark = isDark, unread = unreadCount,
                                                 refreshing = homeRefreshing, serviceTab = serviceTab, onServiceTab = { serviceTab = it },
                                                 onRefresh = { homeRefreshing = true; scope.launch { loadNews(true); homeRefreshing = false; showToast("تم تحديث الرئيسية", "refresh") } },
                                                 onToggleTheme = { onThemeMode(if (isDark) 1 else 2); showToast(if (isDark) "الوضع الفاتح" else "الوضع الداكن", if (isDark) "sun" else "moon") },
@@ -380,8 +390,8 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         onDismiss = { sheet = null },
                     )
                     SheetKind.Notifs -> NotificationsSheet(
-                        items = news, unreadIds = unreadIds,
-                        onOpen = { a, r -> openNews(a, r) },
+                        items = notifs, unread = seenSig != notifSig,
+                        onAction = { k -> if (k == "login") sheet = SheetKind.Login },
                         onDismiss = { markNotifsSeen(); sheet = null },
                     )
                     SheetKind.Message -> MessageSheet { sheet = null }

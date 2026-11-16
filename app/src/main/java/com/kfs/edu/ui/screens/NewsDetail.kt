@@ -72,14 +72,9 @@ import com.kfs.edu.ui.theme.Ds
 import kotlinx.coroutines.launch
 
 /** Clip that grows from the tapped card's bounds to the full screen (shared-element open). */
-private class RevealShape(private val from: Rect, private val p: Float, private val startRadius: Float) : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val rect = Rect(
-            lerp(from.left, 0f, p), lerp(from.top, 0f, p),
-            lerp(from.right, size.width, p), lerp(from.bottom, size.height, p),
-        )
-        return Outline.Rounded(RoundRect(rect, CornerRadius(startRadius * (1f - p))))
-    }
+private class RevealShape(private val rect: Rect, private val p: Float, private val unused: Float, private val radius: Float) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
+        Outline.Rounded(RoundRect(rect, CornerRadius(radius)))
 }
 
 @Composable
@@ -112,7 +107,20 @@ fun NewsDetail(
     }
     BackHandler(onBack = ::close)
 
-    Box(Modifier.fillMaxSize().graphicsLayer { clip = true; shape = RevealShape(source, prog.value, radius) }.background(c.bg)) {
+    Box(Modifier.fillMaxSize().graphicsLayer {
+        // shared-element: the whole page is scaled + moved into the card rect, so closing really shrinks to the card
+        val pr = prog.value
+        val w = size.width; val h = size.height
+        val rl = lerp(source.left, 0f, pr); val rt = lerp(source.top, 0f, pr)
+        val rw = lerp(source.width, w, pr); val rh = lerp(source.height, h, pr)
+        val sc = if (w > 0f) rw / w else 1f
+        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+        scaleX = sc; scaleY = sc
+        translationX = rl; translationY = rt
+        alpha = (pr * 8f).coerceIn(0f, 1f)
+        clip = true
+        shape = RevealShape(Rect(0f, 0f, w, rh / sc), 1f, 0f, radius * (1f - pr) / sc)
+    }.background(c.bg)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val backdrop = rememberLayerBackdrop()
             Box(Modifier.fillMaxWidth().height(340.dp)) {

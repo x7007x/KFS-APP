@@ -266,26 +266,39 @@ object KfuNetworkClient {
     }
 
     /** Ready-made login response (same keys and values the server returns), used while the live request below is disabled. */
-    private const val SAMPLE_LOGIN_JSON = """{
-  "NATIONAL_NUMBER": "30603071501508",
-  "FULL_NAME_AR": "سلمى طه عبدالهادى hh راشد",
-  "METHOD_DESCR": "salma_3479a@sci.kfs.edu.eg",
-  "METHOD_NOTES": "Z@727403210686oc",
-  "STUD_CODE": "1609120240101081",
-  "PASSWORD_ITEC": "299621",
-  "phase_parent": "المستوى الثانى",
-  "GENDER_DESCR_AR": "أنثى",
-  "CASE_DESCR_AR": "مستجد",
-  "RELIGION_DESCR_AR": "مسلم",
-  "METHOD_DESCR_AR": "ساعات معتمدة",
-  "NATURE_DESCR_AR": "انتظام",
-  "ED_CODE_STUD_ENROLL_AR": "مقيد",
-  "Program_Name": "الجيولوجيا",
-  "AS_FACULTY_INFO_ID": 296.0,
-  "STUD_PHOTO": "~/userdocuments//2//296//Staff//0/491638692554718109822.jpg",
-  "FCM_TOKEN": "eqn04h6_S0KKaQqDdGFR8F:APA91bEdofsFhNN2Ea616p_PKI_4MJe6qnjO4krQUAApJbyS6W2ADt8HwuFc8-o152mPiXSg18MsLJjjV6BCbeEVN3HHJW2Hs8CyEZXd6RtL84p0p_qX6d8",
-  "PAYMENT_STATUS": "000"
-}"""
+    /** Builds a login response with randomly generated values (same keys/format as the real API reply). */
+    private fun randomLoginJson(nationalId: String): String {
+        val r = java.util.Random()
+        fun <T> pick(l: List<T>): T = l[r.nextInt(l.size)]
+        fun digits(n: Int) = buildString { repeat(n) { append(r.nextInt(10)) } }
+        val female = r.nextBoolean()
+        val first = pick(if (female) listOf("سلمى", "مريم", "نور", "هبة", "ياسمين", "دعاء", "منة", "رنا", "إسراء", "آية") else listOf("أحمد", "محمد", "محمود", "عمر", "كريم", "يوسف", "مصطفى", "إبراهيم", "علي", "خالد"))
+        val names = listOf("طه", "حسن", "السيد", "عبدالله", "إبراهيم", "فتحي", "جمال", "رضا", "سعيد", "نبيل")
+        val last = listOf("راشد", "النجار", "الشافعي", "عيسى", "مصطفى", "سليمان", "البحيري", "عوض", "هلال", "منصور")
+        val en = listOf("sara", "mona", "omar", "ali", "nour", "hana", "adam", "yara", "zein", "laila")
+        val programs = listOf("الجيولوجيا", "الكيمياء", "الفيزياء", "علوم الحاسب", "الرياضيات", "علم الحيوان", "النبات", "الإحصاء")
+        val levels = listOf("المستوى الأول", "المستوى الثانى", "المستوى الثالث", "المستوى الرابع")
+        val faculty = 100 + r.nextInt(300)
+        val o = JSONObject()
+        o.put("NATIONAL_NUMBER", nationalId)
+        o.put("FULL_NAME_AR", "$first ${pick(names)} ${pick(names)} ${pick(last)}")
+        o.put("METHOD_DESCR", "${pick(en)}_${digits(4)}@sci.kfs.edu.eg")
+        o.put("METHOD_NOTES", "${pick(listOf("K", "M", "Z", "T", "R"))}@${digits(12)}${pick(listOf("oc", "xp", "qa", "lm"))}")
+        o.put("STUD_CODE", "16091" + digits(11))
+        o.put("PASSWORD_ITEC", digits(6))
+        o.put("phase_parent", pick(levels))
+        o.put("GENDER_DESCR_AR", if (female) "أنثى" else "ذكر")
+        o.put("CASE_DESCR_AR", pick(listOf("مستجد", "باق للإعادة", "منقول")))
+        o.put("RELIGION_DESCR_AR", pick(listOf("مسلم", "مسلم", "مسيحي")))
+        o.put("METHOD_DESCR_AR", pick(listOf("ساعات معتمدة", "نظام الفصلين")))
+        o.put("NATURE_DESCR_AR", pick(listOf("انتظام", "انتساب")))
+        o.put("ED_CODE_STUD_ENROLL_AR", pick(listOf("مقيد", "مقيد", "موقوف قيد")))
+        o.put("Program_Name", pick(programs))
+        o.put("AS_FACULTY_INFO_ID", faculty.toDouble())
+        o.put("STUD_PHOTO", "~/userdocuments//2//$faculty//Staff//0/${digits(21)}.jpg")
+        o.put("PAYMENT_STATUS", "000")
+        return o.toString()
+    }
 
     private fun profileFrom(bodyString: String): RealStudentProfile? = try {
         val obj = JSONObject(bodyString)
@@ -369,7 +382,7 @@ object KfuNetworkClient {
     //    return@withContext null
     //}
 
-        profileFrom(SAMPLE_LOGIN_JSON)
+        profileFrom(randomLoginJson(nationalId))
     }
 
     suspend fun sendUniversityMessage(senderName: String, senderEmail: String, subject: String, message: String): Boolean {
