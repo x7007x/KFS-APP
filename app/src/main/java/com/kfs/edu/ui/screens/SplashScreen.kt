@@ -46,16 +46,6 @@ import com.kfs.edu.ui.ds.T
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
-import kotlin.math.sin
-import android.graphics.Bitmap
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.withFrameNanos
-import com.kfs.edu.ui.ds.Logo3D
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import androidx.compose.ui.graphics.ImageBitmap
 
 /** circle(150% at 50% 44%) that collapses to nothing, like the artifact's splash exit. */
 private class IrisShape(private val fraction: Float) : Shape {
@@ -79,9 +69,6 @@ fun SplashOverlay(onCollapse: () -> Unit, onFinished: () -> Unit) {
     val t2 = remember { Animatable(0f) }
     val close = remember { Animatable(1f) }
     var started by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    var frame by remember { mutableStateOf<ImageBitmap?>(null) }
-    val yaw = remember { Animatable(0f) }
 
     fun go() {
         if (started) return
@@ -93,18 +80,6 @@ fun SplashOverlay(onCollapse: () -> Unit, onFinished: () -> Unit) {
     LaunchedEffect(Unit) {
         launch { delay(150); ring.animateTo(1f, tween(1200, easing = Motion.Spring)) }
         launch { delay(100); logo.animateTo(1f, tween(800, easing = Motion.Bounce)) }
-        // 3D logo: turns to the right so the raised parts show, then keeps a gentle sway
-        launch { delay(450); yaw.animateTo(-0f + 27f, tween(1500, easing = Motion.Spring)) }
-        launch {
-            val model = withContext(Dispatchers.Default) { Logo3D.load(context, "kafrelsheikh_logo_3d.glb") } ?: return@launch
-            val bmp = Bitmap.createBitmap(640, 640, Bitmap.Config.ARGB_8888)
-            while (true) {
-                val t = withFrameNanos { it } / 1e9f
-                val y = yaw.value + (if (yaw.value > 26f) 3f * sin(t * 1.6f) else 0f)
-                withContext(Dispatchers.Default) { model.render(bmp, y, 5f - yaw.value * 0.1f, .74f) }
-                frame = bmp.copy(Bitmap.Config.ARGB_8888, false).asImageBitmap()
-            }
-        }
         launch { delay(550); t1.animateTo(1f, tween(800, easing = Motion.Spring)) }
         launch { delay(700); t2.animateTo(1f, tween(800, easing = Motion.Spring)) }
         delay(2300)
@@ -136,13 +111,11 @@ fun SplashOverlay(onCollapse: () -> Unit, onFinished: () -> Unit) {
                         style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
                     )
                 }
-                val f = frame
-                if (f != null) {
-                    androidx.compose.foundation.Image(
-                        bitmap = f, contentDescription = null, filterQuality = FilterQuality.High,
-                        modifier = Modifier.size(132.dp).graphicsLayer { val sc = .4f + .6f * logo.value; scaleX = sc; scaleY = sc; alpha = logo.value.coerceIn(0f, 1f) },
-                    )
-                } else Image(painterResource(R.drawable.logo_small), contentDescription = null, modifier = Modifier.width(70.dp).graphicsLayer { alpha = .0f })
+                Box(
+                    Modifier.size(100.dp).graphicsLayer { val s = .4f + .6f * logo.value; scaleX = s; scaleY = s; alpha = logo.value.coerceIn(0f, 1f) }
+                        .background(Color.White, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Image(painterResource(R.drawable.logo_small), contentDescription = null, modifier = Modifier.width(70.dp)) }
             }
             Box(Modifier.graphicsLayer { alpha = t1.value; translationY = (1f - t1.value) * 16.dp.toPx() }) {
                 T("جامعة كفر الشيخ", 24f, FontWeight.Bold, Color.White, lh = 1.3f)
