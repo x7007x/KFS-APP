@@ -243,7 +243,7 @@ fun MoreScreen(
         Column(Modifier.rise(6, enterKey)) {
             GroupHeader("حقوق المبرمج")
             DsList(Modifier.padding(horizontal = 16.dp)) {
-                LinkRow("user", Color(0xFF5B3FD6), "تطوير: أحمد نجم", "ahmed-negm.dev") { onUrl("https://ahmed-negm.dev", "أحمد نجم") }
+                LinkRow("user", Color(0xFF5B3FD6), "تطوير: أحمد نجم", "AhmedNegm.dev") { onUrl("https://AhmedNegm.dev", "أحمد نجم") }
             }
         }
     }

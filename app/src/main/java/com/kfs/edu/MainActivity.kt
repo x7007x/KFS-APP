@@ -1,4 +1,4 @@
-// Developed by Ahmed Negm (أحمد نجم) - ahmed-negm.dev
+// Developed by Ahmed Negm (أحمد نجم) - AhmedNegm.dev
 package com.kfs.edu
 
 import android.content.Context

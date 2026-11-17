@@ -397,7 +397,7 @@ fun PortalApp(themeMode: Int, isDark: Boolean, onThemeMode: (Int) -> Unit) {
                         },
                         onDismiss = { sheet = null },
                     )
-                    is SheetKind.Browser -> key(s.url) { BrowserSheet(s.url, s.title) { sheet = null } }
+                    is SheetKind.Browser -> key(s.url) { BrowserSheet(s.url, s.title, profile) { sheet = null } }
                 }
                 }
 

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +41,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -116,6 +118,7 @@ fun DsSheet(
     onDismiss: () -> Unit,
     tall: Boolean = false,
     action: Boolean = false,
+    full: Boolean = false,
     content: @Composable (close: () -> Unit) -> Unit,
 ) {
     val c = Ds.c
@@ -152,10 +155,11 @@ fun DsSheet(
             Modifier.align(Alignment.BottomCenter).imePadding()
                 .then(if (action) Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp + bottom) else Modifier)
                 .fillMaxWidth()
-                .then(if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
+                .then(if (full) Modifier.height((maxH - imeDp).coerceAtLeast(160.dp)) else if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
                 .graphicsLayer { translationY = hidden.value * size.height + drag }
                 .clip(shape).then(if (action) Modifier.dsGlass(shape, blurDp = 22f) else Modifier.background(c.bg)),
         ) {
+            if (full) Spacer(Modifier.fillMaxWidth().height(top))
             Box(
                 Modifier.fillMaxWidth().height(26.dp).pointerInput(Unit) {
                     detectVerticalDragGestures(
@@ -165,7 +169,7 @@ fun DsSheet(
                 },
                 contentAlignment = Alignment.Center,
             ) { Box(Modifier.width(38.dp).height(5.dp).background(c.fill2, RoundedCornerShape(3.dp))) }
-            Box(Modifier.then(if (tall) Modifier.weight(1f) else Modifier.weight(1f, fill = false)).padding(bottom = if (action) 0.dp else if (imeDp > 0.dp) 0.dp else bottom)) { content(::close) }
+            Box(Modifier.then(if (tall || full) Modifier.weight(1f) else Modifier.weight(1f, fill = false)).padding(bottom = if (action) 0.dp else if (imeDp > 0.dp) 0.dp else bottom)) { content(::close) }
         }
     }
 }
@@ -404,7 +408,7 @@ fun MessageSheet(onDismiss: () -> Unit) = DsSheet(onDismiss) { close ->
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(onDismiss, tall = true) { close ->
+fun BrowserSheet(url: String, title: String, profile: com.kfs.edu.data.RealStudentProfile?, onDismiss: () -> Unit) = DsSheet(onDismiss, full = true) { close ->
     val c = Ds.c
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -429,6 +433,29 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
             FileKind.Office -> { webView?.loadUrl("https://docs.google.com/gview?embedded=true&url=" + Uri.encode(u)); true }
             else -> false
         }
+    }
+
+    val imeOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    var hint by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(imeOpen) {
+        if (!imeOpen) { hint = null; return@LaunchedEffect }
+        kotlinx.coroutines.delay(150)
+        webView?.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return '';return [e.type,e.name,e.id,e.placeholder,e.autocomplete].join(' ').toLowerCase()})()") { r ->
+            val a = r.orEmpty()
+            hint = when {
+                a.contains("password") || a.contains("pass") || a.contains("كلمة") -> "pass"
+                a.contains("email") || a.contains("mail") || a.contains("بريد") -> "email"
+                a.contains("national") || a.contains("nid") || a.contains("قومي") || a.contains("ssn") -> "nid"
+                a.contains("code") || a.contains("كود") || a.contains("user") || a.contains("stud") -> "code"
+                a.contains("name") || a.contains("اسم") -> "name"
+                else -> null
+            }
+        }
+    }
+    /** Types [value] into the focused web input like a password manager would (fires input/change events). */
+    fun fillField(value: String) {
+        val v = org.json.JSONObject.quote(value)
+        webView?.evaluateJavascript("(function(v){var e=document.activeElement;if(!e||e===document.body)return;var p=Object.getPrototypeOf(e);var d=Object.getOwnPropertyDescriptor(p,'value');if(d&&d.set)d.set.call(e,v);else e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})($v)", null)
     }
 
     BackHandler(enabled = pdfUrl != null) { pdfUrl = null }
@@ -501,6 +528,33 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
                 }
             }
         }
+        if (imeOpen && profile != null) {
+            val items = remember(profile, hint) {
+                val all = listOf(
+                    "nid" to ("الرقم القومي" to profile.nationalNumber),
+                    "code" to ("كود الطالب" to profile.studentCode),
+                    "pass" to ("كلمة المرور" to profile.passwordItec),
+                    "email" to ("البريد الإلكتروني" to profile.email),
+                    "name" to ("الاسم" to profile.fullName),
+                ).filter { it.second.second.isNotBlank() }
+                all.sortedByDescending { it.first == hint }
+            }
+            Row(
+                Modifier.fillMaxWidth().background(c.surface).horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items.forEach { (k, lv) ->
+                    val sel = k == hint
+                    Column(
+                        Modifier.clip(RoundedCornerShape(12.dp)).background(if (sel) c.tint else c.fill)
+                            .dsClick(.94f) { fillField(lv.second) }.padding(horizontal = 12.dp, vertical = 7.dp),
+                    ) {
+                        T(lv.first, 11f, FontWeight.Medium, if (sel) Color.White else c.label2, lh = 1.2f, maxLines = 1)
+                        T(if (k == "pass") "•".repeat(lv.second.length.coerceAtMost(8)) else lv.second, 13.5f, FontWeight.SemiBold, if (sel) Color.White else c.label, lh = 1.3f, maxLines = 1)
+                    }
+                }
+            }
+        } else
         Row(
             Modifier.fillMaxWidth().background(c.surface).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceAround,
