@@ -45,11 +45,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    outputs:
+      start_time: ${{ steps.start.outputs.t }}
 
     steps:
       - name: Record Start Time
+        id: start
         run: |
-          echo "START_TIME=$(date -u +%s)" >> "$GITHUB_ENV"
+          T="$(date -u +%s)"
+          echo "START_TIME=$T" >> "$GITHUB_ENV"
+          echo "t=$T" >> "$GITHUB_OUTPUT"
 
       - name: Checkout source
         uses: actions/checkout@v7
@@ -317,7 +322,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "GRADLE_ROOT=." >> "$GITHUB_ENV"
-          echo "START_TIME=$(date -u -d '${{ github.run_started_at }}' +%s)" >> "$GITHUB_ENV"
+          echo "START_TIME=${{ needs.build.outputs.start_time }}" >> "$GITHUB_ENV"
 
       - name: Download build outputs
         if: needs.build.result == 'success'
