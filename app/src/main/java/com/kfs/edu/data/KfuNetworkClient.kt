@@ -73,6 +73,8 @@ data class RealStudentProfile(
 object KfuNetworkClient {
     private const val TAG = "KfuNetworkClient"
 
+    val httpClient: OkHttpClient get() = client
+
     private val client: OkHttpClient by lazy {
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}

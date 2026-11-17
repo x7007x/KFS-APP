@@ -419,7 +419,20 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
     val barA by animateFloatAsState(if (loading) 1f else 0f, tween(400), label = "barA")
     val bar by animateFloatAsState(progress, tween(350, easing = Motion.Spring), label = "bar")
 
-    BackHandler(enabled = canGoBack) { webView?.goBack() }
+    var pdfUrl by remember { mutableStateOf<String?>(if (fileKind(url) == FileKind.Pdf) url else null) }
+    fun openExternal(u: String) { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { } }
+    /** Routes a file link to the right in-app preview; false when it is an ordinary page. */
+    fun previewFile(u: String, mime: String? = null): Boolean {
+        val k = if (mime?.contains("pdf") == true) FileKind.Pdf else fileKind(u)
+        return when (k) {
+            FileKind.Pdf -> { pdfUrl = u; current = u; true }
+            FileKind.Office -> { webView?.loadUrl("https://docs.google.com/gview?embedded=true&url=" + Uri.encode(u)); true }
+            else -> false
+        }
+    }
+
+    BackHandler(enabled = pdfUrl != null) { pdfUrl = null }
+    BackHandler(enabled = canGoBack && pdfUrl == null) { webView?.goBack() }
     DisposableEffect(Unit) { onDispose { webView?.destroy(); webView = null } }
 
     Column(Modifier.fillMaxSize()) {
@@ -458,7 +471,12 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
                         webChromeClient = object : WebChromeClient() {
                             override fun onProgressChanged(view: WebView?, newProgress: Int) { progress = newProgress / 100f }
                         }
+                        setDownloadListener { dl, _, _, mime, _ -> if (!previewFile(dl, mime)) openExternal(dl) }
                         webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val u = request?.url?.toString() ?: return false
+                                return request.isForMainFrame && previewFile(u)
+                            }
                             override fun onPageStarted(view: WebView?, u: String?, favicon: Bitmap?) { loading = true; failed = false; u?.let { current = it } }
                             override fun onPageFinished(view: WebView?, u: String?) { loading = false; canGoBack = view?.canGoBack() ?: false }
                             override fun doUpdateVisitedHistory(view: WebView?, u: String?, isReload: Boolean) { canGoBack = view?.canGoBack() ?: false; u?.let { current = it } }
@@ -469,12 +487,15 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
                                 if (request?.isForMainFrame == true) { failed = true; loading = false }
                             }
                         }
-                        loadUrl(url)
+                        val k = fileKind(url)
+                        if (k == FileKind.Office) loadUrl("https://docs.google.com/gview?embedded=true&url=" + Uri.encode(url))
+                        else if (k != FileKind.Pdf) loadUrl(url)
                         webView = this
                     }
                 },
             )
-            if (failed) {
+            pdfUrl?.let { pu -> PdfPreview(pu, onFailed = { openExternal(pu) }, modifier = Modifier.fillMaxSize()) }
+            if (failed && pdfUrl == null) {
                 Box(Modifier.fillMaxSize().background(c.bg), contentAlignment = Alignment.Center) {
                     com.kfs.edu.ui.ds.EmptyState("globe", "تعذر تحميل الصفحة", "تحقق من اتصال الإنترنت ثم أعد المحاولة.", "إعادة المحاولة") { failed = false; webView?.reload() }
                 }
@@ -484,7 +505,7 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
             Modifier.fillMaxWidth().background(c.surface).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceAround,
         ) {
-            ToolButton("refresh") { webView?.reload() }
+            ToolButton("refresh") { if (pdfUrl != null) { val u = pdfUrl; pdfUrl = null; pdfUrl = u } else webView?.reload() }
             ToolButton("ext") { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(current)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { } }
             ToolButton("share") {
                 try {
@@ -500,5 +521,18 @@ fun BrowserSheet(url: String, title: String, onDismiss: () -> Unit) = DsSheet(on
 private fun ToolButton(icon: String, onClick: () -> Unit) {
     Box(Modifier.size(44.dp).clip(CircleShape).dsClick(.85f, onClick = onClick), contentAlignment = Alignment.Center) {
         DsIcon(icon, Ds.c.tint, 22.dp)
+    }
+}
+
+private enum class FileKind { Pdf, Office, Image, Other }
+
+private fun fileKind(url: String): FileKind {
+    val path = try { Uri.parse(url).path.orEmpty().lowercase() } catch (_: Exception) { url.lowercase() }
+    return when {
+        path.endsWith(".pdf") -> FileKind.Pdf
+        path.endsWith(".doc") || path.endsWith(".docx") || path.endsWith(".xls") || path.endsWith(".xlsx") ||
+            path.endsWith(".ppt") || path.endsWith(".pptx") -> FileKind.Office
+        path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png") || path.endsWith(".webp") || path.endsWith(".gif") -> FileKind.Image
+        else -> FileKind.Other
     }
 }
