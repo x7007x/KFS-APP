@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -155,7 +156,7 @@ fun DsSheet(
             Modifier.align(Alignment.BottomCenter).imePadding()
                 .then(if (action) Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp + bottom) else Modifier)
                 .fillMaxWidth()
-                .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTapGestures { } }
+                .pointerInput(Unit) { detectTapGestures { } }
                 .then(if (full) Modifier.height((maxH - imeDp).coerceAtLeast(160.dp)) else if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
                 .graphicsLayer { translationY = hidden.value * size.height + drag }
                 .clip(shape).then(if (action) Modifier.dsGlass(shape, blurDp = 22f) else Modifier.background(c.bg)),
