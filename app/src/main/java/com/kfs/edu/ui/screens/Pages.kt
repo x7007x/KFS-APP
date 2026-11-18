@@ -283,7 +283,7 @@ fun ProfilePage(profile: RealStudentProfile, onBack: () -> Unit, onLogout: () ->
             GroupHeader("البيانات الشخصية")
             DsList(Modifier.padding(horizontal = 16.dp)) {
                 CopyRow("user", Color(0xFF1A5CAA), "الاسم بالكامل", profile.fullName); DsDivider()
-                CopyRow("badge", Color(0xFF1A5CAA), "الرقم القومي", profile.nationalNumber); DsDivider()
+                CopyRow("badge", Color(0xFF1A5CAA), "الرقم القومي", profile.nationalNumber, com.kfs.edu.ui.overlays.maskValue("nid", profile.nationalNumber)); DsDivider()
                 CopyRow("badge", Color(0xFF008744), "كود الطالب", profile.studentCode); DsDivider()
                 InfoRow("الكلية", collegeName); DsDivider()
                 InfoRow("الشعبة", profile.programName); DsDivider()

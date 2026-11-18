@@ -260,12 +260,12 @@ fun DsButton(
 @Composable
 fun GlassCircle(icon: String, desc: String, onClick: () -> Unit, badge: String? = null, tint: Color = Ds.c.label) {
     val c = Ds.c
-    Box(Modifier.size(38.dp)) {
+    Box(Modifier.size(42.dp)) {
         Box(
-            Modifier.size(38.dp).dsClick(.88f, onClick = onClick)
+            Modifier.size(42.dp).dsClick(.88f, onClick = onClick)
                 .clip(CircleShape).background(c.surface).border(.5.dp, c.sep, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { DsIcon(icon, tint, 20.dp) }
+        ) { DsIcon(icon, tint, 22.dp) }
         if (badge != null) {
             val a = remember { Animatable(0f) }
             LaunchedEffect(Unit) { delay(900); a.animateTo(1f, tween(600, easing = Motion.Bounce)) }

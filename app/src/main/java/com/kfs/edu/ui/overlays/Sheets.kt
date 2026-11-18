@@ -155,6 +155,7 @@ fun DsSheet(
             Modifier.align(Alignment.BottomCenter).imePadding()
                 .then(if (action) Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp + bottom) else Modifier)
                 .fillMaxWidth()
+                .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTapGestures { } }
                 .then(if (full) Modifier.height((maxH - imeDp).coerceAtLeast(160.dp)) else if (tall) Modifier.height(minOf(maxH * .92f, room)) else Modifier.heightIn(max = sheetMax))
                 .graphicsLayer { translationY = hidden.value * size.height + drag }
                 .clip(shape).then(if (action) Modifier.dsGlass(shape, blurDp = 22f) else Modifier.background(c.bg)),
@@ -528,7 +529,12 @@ fun BrowserSheet(url: String, title: String, profile: com.kfs.edu.data.RealStude
                 }
             }
         }
-        if (imeOpen && profile != null) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = imeOpen && profile != null,
+            enter = androidx.compose.animation.slideInVertically(tween(420, easing = Motion.Spring)) { it } + androidx.compose.animation.fadeIn(tween(300)),
+            exit = androidx.compose.animation.slideOutVertically(tween(260)) { it } + androidx.compose.animation.fadeOut(tween(200)),
+        ) {
+          if (profile != null) {
             val items = remember(profile, hint) {
                 val all = listOf(
                     "nid" to ("الرقم القومي" to profile.nationalNumber),
@@ -550,12 +556,13 @@ fun BrowserSheet(url: String, title: String, profile: com.kfs.edu.data.RealStude
                             .dsClick(.94f) { fillField(lv.second) }.padding(horizontal = 12.dp, vertical = 7.dp),
                     ) {
                         T(lv.first, 11f, FontWeight.Medium, if (sel) Color.White else c.label2, lh = 1.2f, maxLines = 1)
-                        T(if (k == "pass") "•".repeat(lv.second.length.coerceAtMost(8)) else lv.second, 13.5f, FontWeight.SemiBold, if (sel) Color.White else c.label, lh = 1.3f, maxLines = 1)
+                        T(maskValue(k, lv.second), 13.5f, FontWeight.SemiBold, if (sel) Color.White else c.label, lh = 1.3f, maxLines = 1)
                     }
                 }
             }
-        } else
-        Row(
+          }
+        }
+        if (!(imeOpen && profile != null)) Row(
             Modifier.fillMaxWidth().background(c.surface).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceAround,
         ) {
@@ -588,5 +595,18 @@ private fun fileKind(url: String): FileKind {
             path.endsWith(".ppt") || path.endsWith(".pptx") -> FileKind.Office
         path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".png") || path.endsWith(".webp") || path.endsWith(".gif") -> FileKind.Image
         else -> FileKind.Other
+    }
+}
+
+/** Hides the middle of a value so autofill chips and the profile never show it in full. */
+fun maskValue(kind: String, v: String): String {
+    if (v.isEmpty()) return v
+    fun mid(s: String, head: Int, tail: Int): String =
+        if (s.length <= head + tail + 1) s.take(1) + "•".repeat((s.length - 1).coerceAtLeast(1)) else s.take(head) + "•".repeat((s.length - head - tail).coerceAtMost(8)) + s.takeLast(tail)
+    return when (kind) {
+        "pass" -> "•".repeat(v.length.coerceIn(4, 8))
+        "email" -> { val at = v.indexOf('@'); if (at > 0) mid(v.substring(0, at), 2, 1) + v.substring(at) else mid(v, 2, 2) }
+        "name" -> v.trim().split(" ").let { w -> if (w.size > 1) w.first() + " " + "•".repeat(4) else mid(v, 1, 1) }
+        else -> mid(v, 3, 3)
     }
 }

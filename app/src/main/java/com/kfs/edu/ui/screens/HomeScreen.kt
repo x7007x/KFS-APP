@@ -129,7 +129,7 @@ fun HomeScreen(
             GlassCircle(if (isDark) "sun" else "moon", "تبديل المظهر", onToggleTheme)
             GlassCircle("bell", "الإشعارات", onBell, badge = if (unread > 0) nf(minOf(unread, 9)) else null)
             if (profile != null) {
-                Box(Modifier.dsClick(.88f, onClick = onProfile)) { AccountAvatar(profile, 38.dp, 19.dp, 15f) }
+                Box(Modifier.dsClick(.88f, onClick = onProfile)) { AccountAvatar(profile, 42.dp, 21.dp, 16f) }
             } else {
                 GlassCircle("user", "تسجيل الدخول", onLogin)
             }
