@@ -1,0 +1,62 @@
+run: 44283572466  sha: 32ef151bee292a7d6de8b84ecb51d61809991f64
+55:e: file:///home/runner/work/KFS-APP/KFS-APP/app/src/main/java/com/kfs/edu/ui/overlays/Sheets.kt:158:76 Unresolved reference 'detectTapGestures'.
+59:* What went wrong:
+60:Execution failed for task ':app:compileReleaseKotlin'.
+---
+59:* What went wrong:
+60-Execution failed for task ':app:compileReleaseKotlin'.
+61-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+62-   > Compilation error. See log for more details
+63-
+64-* Try:
+65-> Run with --stacktrace option to get the stack trace.
+66-> Run with --info or --debug option to get more log output.
+67-> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+68-> Get more help at https://help.gradle.org.
+69-
+70-BUILD FAILED in 25s
+71-34 actionable tasks: 21 executed, 13 from cache
+72-Configuration cache entry stored.
+--- TAIL
+> Task :app:stripReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libdatastore_shared_counter.so. Run with --info option to learn more.
+
+> Task :app:extractReleaseNativeSymbolTables FROM-CACHE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:extractProguardFiles
+> Task :app:mergeReleaseStartupProfile
+> Task :app:mergeReleaseAssets
+> Task :app:compressReleaseAssets FROM-CACHE
+> Task :app:mergeReleaseResources FROM-CACHE
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:parseReleaseIntegrityConfig FROM-CACHE
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:processReleaseMainManifest
+> Task :app:processReleaseManifest
+> Task :app:processReleaseManifestForPackage
+> Task :app:processReleaseResources
+> Task :app:kspReleaseKotlin
+
+> Task :app:compileReleaseKotlin FAILED
+e: file:///home/runner/work/KFS-APP/KFS-APP/app/src/main/java/com/kfs/edu/ui/overlays/Sheets.kt:158:76 Unresolved reference 'detectTapGestures'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileReleaseKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 25s
+34 actionable tasks: 21 executed, 13 from cache
+Configuration cache entry stored.
+--- compileDebugKotlin
+e: file:///home/runner/work/KFS-APP/KFS-APP/app/src/main/java/com/kfs/edu/ui/overlays/Sheets.kt:158:76 Unresolved reference 'detectTapGestures'.
